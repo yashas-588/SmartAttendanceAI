@@ -1,6 +1,6 @@
 import cv2
+import face_recognition
 import os
-import numpy as np
 from datetime import datetime
 from collections import defaultdict
 import firebase_admin
@@ -15,13 +15,11 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# ---------------- DATASET ----------------
-dataset_path = "dataset"
+# ---------------- LOAD DATASET ----------------
+known_encodings = []
+known_names = []
 
-faces = []
-labels = []
-label_map = {}
-current_label = 0
+dataset_path = "dataset"
 
 for person in os.listdir(dataset_path):
     person_path = os.path.join(dataset_path, person)
@@ -29,50 +27,21 @@ for person in os.listdir(dataset_path):
     if not os.path.isdir(person_path):
         continue
 
-    label_map[current_label] = person
-
     for img_name in os.listdir(person_path):
         img_path = os.path.join(person_path, img_name)
 
-        img = cv2.imread(img_path)
-        if img is None:
-            continue
+        image = face_recognition.load_image_file(img_path)
+        encodings = face_recognition.face_encodings(image)
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if encodings:
+            known_encodings.append(encodings[0])
+            known_names.append(person)
 
-        # 🔥 Resize for consistency
-        gray = cv2.resize(gray, (200, 200))
-
-        faces.append(gray)
-        labels.append(current_label)
-
-    current_label += 1
-
-labels = np.array(labels)
-
-# ---------------- TRAIN ----------------
-recognizer = cv2.face.LBPHFaceRecognizer_create(
-    radius=1,
-    neighbors=8,
-    grid_x=8,
-    grid_y=8
-)
-recognizer.train(faces, labels)
-
-# ---------------- DETECTOR ----------------
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
-
-# ---------------- CAMERA ----------------
-cap = cv2.VideoCapture(1, cv2.CAP_AVFOUNDATION)
-
-if not cap.isOpened():
-    print("❌ Camera error")
-    exit()
+print("✅ Faces loaded")
 
 # ---------------- STORAGE ----------------
 present_students = defaultdict(set)
+last_session = False
 
 parent_emails = {
     "yashas": "yashasr416@gmail.com"
@@ -123,58 +92,58 @@ def mark_absent():
             if student in parent_emails:
                 send_email(parent_emails[student], student, "Class")
 
-# ---------------- RUN ----------------
-print("🚀 Smart Attendance Running")
+# ---------------- CAMERA ----------------
+cap = cv2.VideoCapture(1, cv2.CAP_AVFOUNDATION)
 
-THRESHOLD = 45   # 🔥 STRICT (lower = stricter)
+print("🚀 Smart DL Attendance Running")
 
-no_face_frames = 0
+THRESHOLD = 0.45   # 🔥 STRICT
 
 while True:
     ret, frame = cap.read()
     if not ret:
         continue
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces_detected = face_cascade.detectMultiScale(gray, 1.3, 5)
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    if len(faces_detected) == 0:
-        no_face_frames += 1
-    else:
-        no_face_frames = 0
+    face_locations = face_recognition.face_locations(rgb)
+    face_encodings = face_recognition.face_encodings(rgb, face_locations)
 
-    # 🔥 session end detection
-    if no_face_frames > 50:
+    session_active = len(face_encodings) > 0
+
+    # detect session end → mark absent
+    if not session_active and last_session:
         print("📢 Session ended → marking absent")
         mark_absent()
-        no_face_frames = 0
 
-    for (x, y, w, h) in faces_detected:
-        roi = gray[y:y+h, x:x+w]
+    last_session = session_active
 
-        # 🔥 Resize same as training
-        roi = cv2.resize(roi, (200, 200))
+    for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
 
-        label, confidence = recognizer.predict(roi)
+        face_distances = face_recognition.face_distance(known_encodings, face_encoding)
 
         name = "Unknown"
+        distance = 1.0
 
-        # 🔥 STRICT FILTER
-        if confidence < THRESHOLD:
-            name = label_map.get(label, "Unknown")
+        if len(face_distances) > 0:
+            best_match_index = face_distances.argmin()
+            distance = face_distances[best_match_index]
+
+            if distance < THRESHOLD:
+                name = known_names[best_match_index]
 
         # 🔥 mark only valid face
         if name != "Unknown":
             mark_attendance(name, frame)
 
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
-        cv2.putText(frame, f"{name} ({confidence:.1f})", (x, y-10),
+        cv2.rectangle(frame, (left, top), (right, bottom), (0,255,0), 2)
+        cv2.putText(frame, f"{name} ({distance:.2f})", (left, top-10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
 
-    cv2.imshow("Attendance", frame)
+    cv2.imshow("Attendance DL", frame)
 
     if cv2.waitKey(1) & 0xFF == 27:
-        print("📢 Ending session → marking absent")
+        print("📢 Ending session manually → marking absent")
         mark_absent()
         break
 
