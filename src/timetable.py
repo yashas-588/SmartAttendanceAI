@@ -1,25 +1,46 @@
 from datetime import datetime
 
-# 🔥 TEST MODE SWITCH
-TEST_MODE = True   # 👉 change to False later
+# 🔥 MODE SWITCH
+MODE = "TEST"   # 👉 "TEST" or "REAL"
 
-# 🔥 FORCE SUBJECT WHEN TESTING
+# 🔥 TEST MODE SUBJECT (you control this anytime)
 TEST_SUBJECT = "DAA"
 
 timetable = {
-    "MON": [("09:00","10:00","DAA"), ("10:00","11:00","DBMS")],
-    "TUE": [("09:00","11:00","LAB")],
-    "WED": [("09:00","10:00","COCA")],
-    "THU": [("09:00","10:00","COCA")],
-    "FRI": [("09:00","10:00","MAT")],
-    "SAT": [("09:00","10:00","DAA")]
+    "MON": [
+        ("09:00", "10:00", "DAA"),
+        ("10:00", "11:00", "DBMS"),
+        ("11:15", "12:15", "MAT")
+    ],
+    "TUE": [
+        ("09:00", "11:00", "LAB"),
+        ("11:15", "12:15", "COCA"),
+        ("12:15", "01:15", "DAA")
+    ],
+    "WED": [
+        ("09:00", "10:00", "COCA"),
+        ("10:00", "11:00", "CBM")
+    ],
+    "THU": [
+        ("09:00", "10:00", "COCA"),
+        ("10:00", "11:00", "CBM")
+    ],
+    "FRI": [
+        ("09:00", "10:00", "MAT"),
+        ("10:00", "11:00", "DAA")
+    ],
+    "SAT": [
+        ("09:00", "10:00", "DAA"),
+        ("10:00", "11:00", "DBMS")
+    ]
 }
 
 def get_current_class():
-    # 🔥 FORCE MODE
-    if TEST_MODE:
+    # 🔥 TEST MODE (FREE CONTROL)
+    if MODE == "TEST":
         return TEST_SUBJECT
 
+    # 🔥 REAL MODE (TIMETABLE BASED)
     now = datetime.now()
     day = now.strftime("%a").upper()
     current_time = now.strftime("%H:%M")
