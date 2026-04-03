@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Attendance</title>
+
+  <!-- 🔥 IMPORTANT FOR MOBILE -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCDBG4wECmxqmrcX5dkhBAA_r6bFTg4KCE",
+      authDomain: "smart-attendance-ai-7139f.firebaseapp.com",
+      projectId: "smart-attendance-ai-7139f"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    function getToday() {
+      return new Date().toISOString().split("T")[0];
+    }
+
+    function startRealtime() {
+      const table = document.getElementById("data");
+      const count = document.getElementById("count");
+
+      const today = getToday();
+
+      onSnapshot(collection(db, "attendance"), (snapshot) => {
+        table.innerHTML = "";
+        let total = 0;
+
+        snapshot.forEach((doc) => {
+          const d = doc.data();
+
+          if (d.date === today) {
+            total++;
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${d.name}</td>
+              <td>${d.time}</td>
+            `;
+            row.classList.add("fade");
+            table.appendChild(row);
+          }
+        });
+
+        count.innerText = total;
+      });
+    }
+
+    window.login = function () {
+      const user = document.getElementById("user").value;
+      const pass = document.getElementById("pass").value;
+
+      if (user === "admin" && pass === "1234") {
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("dashboard").style.display = "block";
+        startRealtime();
+      } else {
+        alert("Invalid login");
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #0f172a, #020617);
+      color: white;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin-top: 10px;
+    }
+
+    /* LOGIN */
+    input {
+      padding: 12px;
+      margin: 10px;
+      border-radius: 10px;
+      border: none;
+      width: 80%;
+      max-width: 250px;
+    }
+
+    button {
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: none;
+      background: cyan;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    /* CARD */
+    .card {
+      margin: 15px auto;
+      padding: 15px;
+      width: 80%;
+      max-width: 250px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      font-size: 18px;
+    }
+
+    /* TABLE */
+    table {
+      margin: auto;
+      width: 95%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    tr:hover {
+      background: rgba(0,255,255,0.1);
+    }
+
+    /* ANIMATION */
+    .fade {
+      animation: fadeIn 0.5s;
+    }
+
+    @keyframes fadeIn {
+      from {opacity: 0;}
+      to {opacity: 1;}
+    }
+
+    /* DESKTOP UPGRADE */
+    @media (min-width: 768px) {
+      h1 {
+        font-size: 32px;
+      }
+
+      table {
+        width: 60%;
+        font-size: 16px;
+      }
+
+      .card {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox">
+  <h2>🔐 Admin Login</h2>
+  <input id="user" placeholder="Username"><br>
+  <input id="pass" type="password" placeholder="Password"><br>
+  <button onclick="login()">Login</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none;">
+  <h1>🚀 Smart Attendance</h1>
+
+  <div class="card">
+    👥 Present: <span id="count">0</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody id="data"></tbody>
+  </table>
+</div>
+
+</body>
+</html>
