@@ -1,12 +1,16 @@
 import cv2
 import os
 
-name = "yashas"
+# 🔥 Ask user name
+name = input("Enter your name: ").strip()
+
 save_path = f"dataset/{name}"
 
-os.makedirs(save_path, exist_ok=True)
+if not os.path.exists(save_path):
+    os.makedirs(save_path)
 
-cap = cv2.VideoCapture(1, cv2.CAP_AVFOUNDATION)
+# Mac camera (LOCKED)
+cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
 
 face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
@@ -14,33 +18,42 @@ face_cascade = cv2.CascadeClassifier(
 
 count = 0
 
-print("📸 Press SPACE to capture | ESC to exit")
+print("\n👉 Press SPACE to capture")
+print("👉 Press ESC to exit\n")
 
 while True:
     ret, frame = cap.read()
     if not ret:
-        continue
+        print("❌ Camera error")
+        break
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
     for (x, y, w, h) in faces:
-        face = frame[y:y+h, x:x+w]
+        cv2.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
 
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
+    cv2.putText(frame, f"Images: {count}", (10,30),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
-    cv2.imshow("Capture Faces", frame)
+    cv2.imshow("Collect Faces", frame)
 
     key = cv2.waitKey(1)
 
-    if key == 32:  # SPACE
-        count += 1
-        img_path = f"{save_path}/{count}.jpg"
-        cv2.imwrite(img_path, face)
-        print(f"Saved {img_path}")
+    # SPACE = capture
+    if key == 32:
+        for (x, y, w, h) in faces:
+            face = gray[y:y+h, x:x+w]
+            count += 1
+            cv2.imwrite(f"{save_path}/{count}.jpg", face)
+            print(f"📸 Captured {count}")
 
-    elif key == 27:  # ESC
+    # ESC = exit
+    elif key == 27:
         break
 
 cap.release()
 cv2.destroyAllWindows()
+
+print(f"\n✅ Done. Total images: {count}")

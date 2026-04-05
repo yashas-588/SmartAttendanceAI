@@ -1,14 +1,28 @@
 import cv2
 
-for i in range(5):
-    cap = cv2.VideoCapture(i, cv2.CAP_AVFOUNDATION)
+# FORCE AVFoundation properly
+cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
 
-    if cap.isOpened():
-        ret, frame = cap.read()
-        if ret:
-            print(f"Camera index {i} working")
-            cv2.imshow(f"Camera {i}", frame)
-            cv2.waitKey(2000)  # shows for 2 seconds
-            cap.release()
+if not cap.isOpened():
+    print("❌ Camera not opening")
+    exit()
 
+# check resolution (helps confirm device)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+print("✅ Camera opened")
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("❌ Frame failed")
+        break
+
+    cv2.imshow("Mac Camera", frame)
+
+    if cv2.waitKey(1) == 27:
+        break
+
+cap.release()
 cv2.destroyAllWindows()

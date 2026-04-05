@@ -1,181 +1,105 @@
 import cv2
-import os
 import numpy as np
-from datetime import datetime
-from collections import defaultdict
 import firebase_admin
-from firebase_admin import credentials, firestore
-from firebase_upload import upload_image
-from send_email import send_email
+from firebase_admin import credentials, firestore, storage
+from datetime import datetime
+import uuid
+import os
 
-# ---------------- FIREBASE ----------------
-if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase_key.json")
-    firebase_admin.initialize_app(cred)
+# 🔐 Firebase init
+cred = credentials.Certificate("firebase_key.json")
+
+firebase_admin.initialize_app(cred, {
+    'storageBucket': 'smart-attendance-ai-7139f.firebasestorage.app'
+})
 
 db = firestore.client()
+bucket = storage.bucket()
 
-# ---------------- DATASET ----------------
-dataset_path = "dataset"
+# Load model
+recognizer = cv2.face.LBPHFaceRecognizer_create()
+recognizer.read("trainer.yml")
 
-faces = []
-labels = []
-label_map = {}
-current_label = 0
+labels = np.load("labels.npy", allow_pickle=True).item()
 
-for person in os.listdir(dataset_path):
-    person_path = os.path.join(dataset_path, person)
-
-    if not os.path.isdir(person_path):
-        continue
-
-    label_map[current_label] = person
-
-    for img_name in os.listdir(person_path):
-        img_path = os.path.join(person_path, img_name)
-
-        img = cv2.imread(img_path)
-        if img is None:
-            continue
-
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        # 🔥 Resize for consistency
-        gray = cv2.resize(gray, (200, 200))
-
-        faces.append(gray)
-        labels.append(current_label)
-
-    current_label += 1
-
-labels = np.array(labels)
-
-# ---------------- TRAIN ----------------
-recognizer = cv2.face.LBPHFaceRecognizer_create(
-    radius=1,
-    neighbors=8,
-    grid_x=8,
-    grid_y=8
-)
-recognizer.train(faces, labels)
-
-# ---------------- DETECTOR ----------------
 face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
 
-# ---------------- CAMERA ----------------
-cap = cv2.VideoCapture(1, cv2.CAP_AVFOUNDATION)
+# Camera
+cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
 
-if not cap.isOpened():
-    print("❌ Camera error")
-    exit()
+marked_today = set()
 
-# ---------------- STORAGE ----------------
-present_students = defaultdict(set)
-
-parent_emails = {
-    "yashas": "yashasr416@gmail.com"
-}
-
-def get_all_students():
-    return [name for name in os.listdir("dataset")
-            if os.path.isdir(os.path.join("dataset", name))]
-
+# 🔥 FINAL FUNCTION (CORRECT IMAGE UPLOAD)
 def mark_attendance(name, frame):
     today = datetime.now().strftime("%Y-%m-%d")
+    time_now = datetime.now().strftime("%H:%M:%S")
 
-    if name in present_students["class"]:
+    if name in marked_today:
         return
 
-    now = datetime.now()
+    # create temp folder
+    if not os.path.exists("temp"):
+        os.makedirs("temp")
 
-    image_url = upload_image(frame)
+    filename = f"{name}_{uuid.uuid4().hex}.jpg"
+    filepath = f"temp/{filename}"
 
+    # save image locally
+    cv2.imwrite(filepath, frame)
+
+    # upload to Firebase Storage
+    blob = bucket.blob(f"attendance/{filename}")
+    blob.upload_from_filename(filepath)
+
+    # make image public
+    blob.make_public()
+
+    # get correct URL
+    image_url = blob.public_url
+
+    # store in Firestore
     db.collection("attendance").add({
         "name": name,
         "date": today,
-        "time": now.strftime("%H:%M:%S"),
-        "status": "Present",
-        "image": image_url
+        "time": time_now,
+        "subject": "TEST",
+        "image": image_url   # ✅ THIS IS THE FIX
     })
 
-    present_students["class"].add(name)
-    print(f"✅ {name} PRESENT")
+    marked_today.add(name)
+    print(f"✅ Stored {name} with image URL")
 
-def mark_absent():
-    all_students = get_all_students()
-    present = present_students["class"]
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    for student in all_students:
-        if student not in present:
-            db.collection("attendance").add({
-                "name": student,
-                "date": today,
-                "time": "--",
-                "status": "Absent",
-                "image": ""
-            })
-
-            print(f"❌ {student} ABSENT")
-
-            if student in parent_emails:
-                send_email(parent_emails[student], student, "Class")
-
-# ---------------- RUN ----------------
-print("🚀 Smart Attendance Running")
-
-THRESHOLD = 45   # 🔥 STRICT (lower = stricter)
-
-no_face_frames = 0
-
+# 🎥 MAIN LOOP
 while True:
     ret, frame = cap.read()
     if not ret:
-        continue
+        print("❌ Camera error")
+        break
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces_detected = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-    if len(faces_detected) == 0:
-        no_face_frames += 1
-    else:
-        no_face_frames = 0
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-    # 🔥 session end detection
-    if no_face_frames > 50:
-        print("📢 Session ended → marking absent")
-        mark_absent()
-        no_face_frames = 0
+    for (x, y, w, h) in faces:
+        face = gray[y:y+h, x:x+w]
 
-    for (x, y, w, h) in faces_detected:
-        roi = gray[y:y+h, x:x+w]
+        id_, conf = recognizer.predict(face)
 
-        # 🔥 Resize same as training
-        roi = cv2.resize(roi, (200, 200))
-
-        label, confidence = recognizer.predict(roi)
-
-        name = "Unknown"
-
-        # 🔥 STRICT FILTER
-        if confidence < THRESHOLD:
-            name = label_map.get(label, "Unknown")
-
-        # 🔥 mark only valid face
-        if name != "Unknown":
+        if conf < 40:
+            name = labels[id_]
             mark_attendance(name, frame)
+        else:
+            name = "Unknown"
 
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
-        cv2.putText(frame, f"{name} ({confidence:.1f})", (x, y-10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+        cv2.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
+        cv2.putText(frame, name, (x,y-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
-    cv2.imshow("Attendance", frame)
+    cv2.imshow("AI Attendance", frame)
 
-    if cv2.waitKey(1) & 0xFF == 27:
-        print("📢 Ending session → marking absent")
-        mark_absent()
+    if cv2.waitKey(1) == 27:
         break
 
 cap.release()
