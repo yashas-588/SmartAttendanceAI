@@ -1,59 +1,71 @@
 import cv2
 import os
+import time
 
-# 🔥 Ask user name
-name = input("Enter your name: ").strip()
+# 🔥 MAC FIXED CAMERA FUNCTION
+def get_camera():
+    for i in range(3):
+        cap = cv2.VideoCapture(i, cv2.CAP_AVFOUNDATION)
+        time.sleep(1)
 
-save_path = f"dataset/{name}"
+        if cap.isOpened():
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                print(f"✅ Using camera index: {i}")
+                return cap
 
-if not os.path.exists(save_path):
-    os.makedirs(save_path)
+    print("❌ No working camera found")
+    exit()
 
-# Mac camera (LOCKED)
-cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
+cap = get_camera()
 
+# 🔥 FACE DETECTOR
 face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 )
 
-count = 0
+# 🔥 INPUT NAME
+name = input("Enter your name: ").strip().lower()
 
-print("\n👉 Press SPACE to capture")
-print("👉 Press ESC to exit\n")
+# 🔥 CREATE DATASET FOLDER
+dataset_path = f"dataset/{name}"
+os.makedirs(dataset_path, exist_ok=True)
+
+count = 0
+max_images = 50
+
+print("📸 Look at camera. Move your face slowly...")
 
 while True:
     ret, frame = cap.read()
-    if not ret:
-        print("❌ Camera error")
-        break
+
+    # 🔥 SAFE CHECK
+    if not ret or frame is None:
+        continue
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
     for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
+        count += 1
 
-    cv2.putText(frame, f"Images: {count}", (10,30),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+        face_img = gray[y:y+h, x:x+w]
 
-    cv2.imshow("Collect Faces", frame)
+        file_path = os.path.join(dataset_path, f"{count}.jpg")
+        cv2.imwrite(file_path, face_img)
 
-    key = cv2.waitKey(1)
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
 
-    # SPACE = capture
-    if key == 32:
-        for (x, y, w, h) in faces:
-            face = gray[y:y+h, x:x+w]
-            count += 1
-            cv2.imwrite(f"{save_path}/{count}.jpg", face)
-            print(f"📸 Captured {count}")
+    cv2.imshow("Collecting Faces", frame)
 
-    # ESC = exit
-    elif key == 27:
+    # 🔥 STOP CONDITIONS
+    if count >= max_images:
+        print("✅ Done collecting images")
+        break
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
 cv2.destroyAllWindows()
-
-print(f"\n✅ Done. Total images: {count}")
