@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Attendance — Smart AI Attendance</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { background: var(--gradient-bg); }
+
+    /* TOP NAV */
+    .top-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 64px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px;
+      background: rgba(2,8,23,0.85); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-glass);
+    }
+    .nav-logo { font-family: 'Orbitron', sans-serif; font-size: 16px; font-weight: 700; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-links-row { display: flex; align-items: center; gap: 6px; }
+    .nav-link {
+      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+      color: var(--text-secondary); text-decoration: none; transition: var(--transition);
+    }
+    .nav-link:hover, .nav-link.active { color: var(--neon-blue); background: rgba(56,189,248,0.08); }
+    .nav-right { display: flex; align-items: center; gap: 14px; }
+    .clock-display { font-family: 'Orbitron', sans-serif; font-size: 13px; color: var(--neon-blue); }
+
+    /* MAIN LAYOUT */
+    .live-main { padding-top: 64px; display: grid; grid-template-columns: 1fr 380px; height: 100vh; gap: 0; }
+
+    /* LEFT — CAMERA */
+    .camera-panel {
+      padding: 24px; display: flex; flex-direction: column; gap: 16px;
+      background: rgba(2,8,23,0.6);
+      border-right: 1px solid var(--border-glass);
+    }
+    .camera-header { display: flex; align-items: center; justify-content: space-between; }
+    .camera-header h2 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .live-badge { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .live-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; animation: blink 1s infinite; }
+
+    .camera-wrapper {
+      position: relative; border-radius: 16px; overflow: hidden;
+      border: 1px solid var(--border-glass); flex: 1;
+      background: #000; min-height: 400px;
+    }
+    #webcam { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #overlay-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+    #scanline { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--neon-blue), transparent); top: 0; animation: scan 3s linear infinite; z-index: 2; }
+    .corner { position: absolute; width: 24px; height: 24px; z-index: 3; }
+    .corner-tl { top: 12px; left: 12px; border-top: 2px solid var(--neon-blue); border-left: 2px solid var(--neon-blue); }
+    .corner-tr { top: 12px; right: 12px; border-top: 2px solid var(--neon-blue); border-right: 2px solid var(--neon-blue); }
+    .corner-bl { bottom: 12px; left: 12px; border-bottom: 2px solid var(--neon-blue); border-left: 2px solid var(--neon-blue); }
+    .corner-br { bottom: 12px; right: 12px; border-bottom: 2px solid var(--neon-blue); border-right: 2px solid var(--neon-blue); }
+    .camera-off-msg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); gap: 12px; font-size: 15px; }
+
+    .camera-controls { display: flex; gap: 12px; flex-wrap: wrap; }
+    .status-indicator {
+      flex: 1; background: var(--bg-glass); backdrop-filter: blur(10px);
+      border: 1px solid var(--border-glass); border-radius: 12px;
+      padding: 16px 20px; display: flex; align-items: center; gap: 14px;
+    }
+    .status-icon { font-size: 24px; }
+    .status-text { font-size: 14px; font-weight: 600; }
+    .status-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* RIGHT — FEED */
+    .feed-panel { display: flex; flex-direction: column; background: rgba(2,8,23,0.5); overflow: hidden; }
+    .feed-header { padding: 20px 20px 16px; border-bottom: 1px solid var(--border-glass); }
+    .feed-header h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .feed-header p { font-size: 12px; color: var(--text-muted); }
+    .feed-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--border-glass); }
+    .feed-stat { background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 10px; padding: 12px 14px; }
+    .feed-stat-num { font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 700; }
+    .feed-stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .feed-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .feed-item {
+      background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 12px;
+      padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+      animation: slideInLeft 0.4s ease; transition: var(--transition);
+    }
+    .feed-item:hover { border-color: var(--border-neon); }
+    .feed-item.unknown { border-left: 3px solid #ef4444; }
+    .feed-item.present { border-left: 3px solid var(--neon-green); }
+    .feed-avatar { width: 42px; height: 42px; border-radius: 10px; background: var(--gradient-primary); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .feed-name { font-size: 14px; font-weight: 600; }
+    .feed-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .feed-time { margin-left: auto; font-size: 11px; color: var(--text-muted); text-align: right; }
+
+    .alert-unknown {
+      background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: #f87171; margin: 0 12px;
+    }
+
+    /* CANVAS hidden */
+    #canvas { display: none; }
+
+    @media (max-width: 900px) {
+      .live-main { grid-template-columns: 1fr; height: auto; }
+      .feed-panel { max-height: 400px; }
+    }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<canvas id="canvas"></canvas>
+
+<!-- TOP NAV -->
+<nav class="top-nav">
+  <div class="nav-logo"><img src="logo.png" style="height:28px; display:inline-block; vertical-align:middle; border-radius:6px; box-shadow:0 0 10px rgba(56,189,248,0.4);"></div>
+  <div class="nav-links-row">
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="dashboard.html" class="nav-link">Dashboard</a>
+    <a href="live.html" class="nav-link active"><i data-lucide="circle-dot"></i> Live</a>
+  </div>
+  <div class="nav-right">
+    <div class="clock-display" id="clock">--:--:--</div>
+    <div style="font-size:12px; color:var(--text-muted)" id="date-display"></div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="live-main">
+
+  <!-- LEFT: CAMERA -->
+  <div class="camera-panel">
+    <div class="camera-header">
+      <h2><i data-lucide="video"></i> Live Camera Feed</h2>
+      <div style="display:flex; gap:8px;">
+        <div class="live-badge" style="background:rgba(56,189,248,0.15); border-color:rgba(56,189,248,0.3); color:var(--neon-blue); display:none;" id="loc-badge"><i data-lucide="map-pin" style="width:12px;height:12px;"></i> Location Verified</div>
+        <div class="live-badge"><span class="live-badge-dot"></span> LIVE</div>
+      </div>
+    </div>
+
+    <div class="camera-wrapper">
+      <video id="webcam" autoplay playsinline></video>
+      <canvas id="overlay-canvas"></canvas>
+      <div id="scanline"></div>
+      <div class="corner corner-tl"></div>
+      <div class="corner corner-tr"></div>
+      <div class="corner corner-bl"></div>
+      <div class="corner corner-br"></div>
+    </div>
+
+    <div class="camera-controls">
+      <div class="status-indicator" id="status-box">
+        <div class="status-icon" id="status-icon"><i data-lucide="camera"></i></div>
+        <div>
+          <div class="status-text" id="status-text">Initializing Camera...</div>
+          <div class="status-sub" id="status-sub">Setting up AI engine</div>
+        </div>
+        <div class="spinner" id="status-spinner" style="margin-left:auto"></div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <button class="btn-primary" onclick="triggerScan()" style="flex:1"><i data-lucide="search"></i> Scan Now</button>
+      <button class="btn-secondary" onclick="toggleCamera()" id="cam-toggle-btn"><i data-lucide="pause"></i> Pause</button>
+      <a href="dashboard.html" class="btn-secondary"><i data-lucide="bar-chart-2"></i> Dashboard</a>
+    </div>
+  </div>
+
+  <!-- RIGHT: FEED -->
+  <div class="feed-panel">
+    <div class="feed-header">
+      <h3><i data-lucide="clipboard-list"></i> Real-Time Attendance Feed</h3>
+      <p>Auto-updates as AI recognizes faces</p>
+    </div>
+    <div class="feed-stats">
+      <div class="feed-stat">
+        <div class="feed-stat-num" id="present-count" style="color:var(--neon-green)">0</div>
+        <div class="feed-stat-label">Present Today</div>
+      </div>
+      <div class="feed-stat">
+        <div class="feed-stat-num" id="unknown-count" style="color:#f87171">0</div>
+        <div class="feed-stat-label">Unknown Faces</div>
+      </div>
+    </div>
+    <div class="feed-list" id="feed-list">
+      <div style="text-align:center; color:var(--text-muted); font-size:14px; padding:40px 20px;">
+        <div style="font-size:40px; margin-bottom:12px"><i data-lucide="eye"></i></div>
+        Waiting for faces to appear in frame...
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCDBG4wECmxqmrcX5dkhBAA_r6bFTg4KCE",
+    authDomain: "smart-attendance-ai-7139f.firebaseapp.com",
+    projectId: "smart-attendance-ai-7139f",
+    storageBucket: "smart-attendance-ai-7139f.firebasestorage.app",
+    messagingSenderId: "452085670379",
+    appId: "1:452085670379:web:1b7c62b26133c2c06c79ae"
+  };
+
+  const fireApp = initializeApp(firebaseConfig);
+  const db = getFirestore(fireApp);
+  const BACKEND = "https://7bea3b025c183d.lhr.life";
+
+  const video = document.getElementById('webcam');
+  const canvas = document.getElementById('canvas');
+  let isProcessing = false, cameraActive = true, unknownCount = 0;
+  let userLocation = { lat: null, lon: null };
+
+  // Get Location
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      const b = document.getElementById('loc-badge');
+      b.style.display = 'flex';
+      if(window.lucide) lucide.createIcons();
+    },
+    err => { console.warn("Location denied or unavailable."); }
+  );
+
+  // Clock
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString();
+    document.getElementById('date-display').textContent = now.toLocaleDateString('en-IN', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  }
+  setInterval(updateClock, 1000); updateClock();
+
+  // Status
+  function setStatus(text, sub, type) {
+    const icons = { scanning:'<i data-lucide="search"></i>', success:'<i data-lucide="check-circle"></i>', error:'<i data-lucide="x-circle"></i>', idle:'<i data-lucide="camera"></i>', spoof:'<i data-lucide="ban"></i>', live:'<i data-lucide="radio"></i>' };
+    document.getElementById('status-text').innerHTML = text;
+    document.getElementById('status-sub').innerHTML = sub || '';
+    document.getElementById('status-icon').innerHTML = icons[type] || '<i data-lucide="camera"></i>';
+    const spinner = document.getElementById('status-spinner');
+    spinner.style.display = (type === 'scanning') ? 'block' : 'none';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Camera
+  async function setupCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width:1280, height:720 }, audio: false });
+      video.srcObject = stream;
+      video.play();
+      await new Promise(r => { video.onloadedmetadata = r; setTimeout(r, 1500); });
+      setStatus('Ready — AI Scanning Active', 'Point camera at students', 'idle');
+    } catch(e) {
+      setStatus('Camera Access Denied', e.message, 'error');
+    }
+  }
+
+  window.toggleCamera = function() {
+    cameraActive = !cameraActive;
+    document.getElementById('cam-toggle-btn').textContent = cameraActive ? '<i data-lucide="pause"></i> Pause' : '<i data-lucide="play"></i> Resume';
+    const tracks = video.srcObject?.getTracks();
+    if (tracks) tracks.forEach(t => t.enabled = cameraActive);
+  };
+
+  function captureFrame() {
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    return canvas.toDataURL('image/jpeg', 0.7);
+  }
+
+  // Firebase feed
+  const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"), limit(30));
+  onSnapshot(q, snap => {
+    const list = document.getElementById('feed-list');
+    if (snap.empty) return;
+    let html = '';
+    let count = 0;
+    snap.forEach(doc => {
+      const d = doc.data();
+      count++;
+      const initials = (d.name || 'U')[0].toUpperCase();
+      html += `<div class="feed-item present">
+        <div class="feed-avatar">${initials}</div>
+        <div>
+          <div class="feed-name">${d.name || 'Unknown'}</div>
+          <div class="feed-meta"><i data-lucide="calendar"></i> ${d.date || ''}</div>
+        </div>
+        <div class="feed-time"><div style="color:var(--neon-green); font-size:13px;"><i data-lucide="check-circle"></i> Present</div><div>${d.time || ''}</div></div>
+      </div>`;
+    });
+    list.innerHTML = html;
+    document.getElementById('present-count').textContent = count;
+    if (window.lucide) lucide.createIcons();
+  });
+
+  // Scan
+  async function doScan() {
+    if (isProcessing || !cameraActive) return;
+    isProcessing = true;
+    setStatus('Checking Liveness...', 'Analyzing motion & blink', 'scanning');
+
+    const frames = [];
+    for (let i = 0; i < 3; i++) {
+      frames.push(captureFrame());
+      if (i < 2) await new Promise(r => setTimeout(r, 150));
+    }
+
+    try {
+      const livRes = await fetch(`${BACKEND}/api/verify-liveness`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ frames })
+      });
+      const livData = await livRes.json();
+
+      if (!livData.is_live) {
+        setStatus('Spoof Detected — Try Again', 'Face did not pass liveness check', 'spoof');
+        unknownCount++; document.getElementById('unknown-count').textContent = unknownCount;
+        showToast('Spoof Detected! Please try again.', 'error');
+        setTimeout(() => { setStatus('Ready — AI Scanning Active', 'Point camera at students', 'idle'); isProcessing = false; }, 2000);
+        return;
+      }
+
+      setStatus('Live ✓ — Recognizing Face...', 'Matching against database', 'live');
+      const markRes = await fetch(`${BACKEND}/api/mark-attendance`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ image: frames[2], lat: userLocation.lat, lon: userLocation.lon })
+      });
+      const markData = await markRes.json();
+
+      if (markData.success) {
+        setStatus(`<i data-lucide="check-circle"></i> ${markData.name}`, markData.message, 'success');
+        showToast(`<i data-lucide="party-popper"></i> ${markData.name}: ${markData.message}`, 'success');
+        setTimeout(() => { setStatus('Ready — AI Scanning Active', 'Point camera at students', 'idle'); isProcessing = false; }, 3500);
+      } else {
+        setStatus('Face Not Recognized', markData.message || 'Not in database', 'error');
+        showToast(`<i data-lucide="x-circle"></i> ${markData.message || 'Face not recognized'}`, 'error');
+        unknownCount++; document.getElementById('unknown-count').textContent = unknownCount;
+        setTimeout(() => { setStatus('Ready — AI Scanning Active', 'Point camera at students', 'idle'); isProcessing = false; }, 2500);
+      }
+    } catch(e) {
+      setStatus('Server Error', 'Make sure Flask backend is running', 'error');
+      showToast('<i data-lucide="alert-triangle"></i> Cannot connect to backend. Run python3 src/app.py', 'error');
+      setTimeout(() => { setStatus('Ready — AI Scanning Active', '', 'idle'); isProcessing = false; }, 3000);
+    }
+  }
+
+  window.triggerScan = () => doScan();
+  setInterval(() => { if (!isProcessing && cameraActive) doScan(); }, 3000);
+  setupCamera();
+
+  // Toast
+  window.showToast = function(msg, type='info') {
+    const icons = { success:'<i data-lucide="check-circle"></i>', error:'<i data-lucide="x-circle"></i>', info:'<i data-lucide="info"></i>', warning:'<i data-lucide="alert-triangle"></i>' };
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<span class="toast-icon">${icons[type]||'<i data-lucide="info"></i>'}</span><span>${msg}</span><span class="toast-close" onclick="this.parentElement.remove()">✕</span>`;
+    document.getElementById('toast-container').appendChild(t);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => t.remove(), 5000);
+  };
+</script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
