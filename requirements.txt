@@ -1,0 +1,10 @@
+flask
+flask-cors
+deepface
+firebase-admin
+opencv-python
+mediapipe
+torch
+scipy
+numpy
+tf-keras

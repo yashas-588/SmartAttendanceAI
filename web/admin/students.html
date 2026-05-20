@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Management — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
+    .sidebar-logo { padding:0 20px; margin-bottom:36px; }
+    .sidebar-menu { flex:1; display:flex; flex-direction:column; gap:4px; padding:0 12px; }
+    .menu-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:10px; color:var(--text-secondary); text-decoration:none; font-size:13px; font-weight:500; transition:var(--transition); }
+    .menu-item:hover,.menu-item.active { background:rgba(56,189,248,0.1); color:var(--neon-blue); }
+    .menu-icon { width:20px; height:20px; flex-shrink:0; }
+    .sidebar-footer { padding:16px 12px 0; border-top:1px solid var(--border-glass); }
+    .user-profile { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .user-info h4 { font-size:13px; font-weight:600; }
+    .user-info p { font-size:11px; color:var(--text-muted); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); display:flex; flex-direction:column; min-height:100vh; }
+    .topbar { height:64px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-glass); background:rgba(2,8,23,0.8); backdrop-filter:blur(20px); position:sticky; top:0; z-index:90; }
+    .content { padding:28px 32px; }
+    .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+    .search-bar { display:flex; align-items:center; background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:10px; padding:0 14px; width:280px; }
+    .search-bar input { background:transparent; border:none; padding:10px 0 10px 10px; outline:none; width:100%; box-shadow:none; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+    .s-card { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; padding:20px; text-align:center; transition:var(--transition); position:relative; }
+    .s-card:hover { border-color:var(--border-neon); transform:translateY(-3px); }
+    .s-avatar { width:64px; height:64px; border-radius:50%; margin:0 auto 12px; border:2px solid var(--border-glass); object-fit:cover; }
+    .s-name { font-size:15px; font-weight:700; margin-bottom:2px; }
+    .s-uid { font-size:11px; color:var(--text-muted); font-family:monospace; margin-bottom:10px; }
+    .s-stats { display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.05); padding-top:12px; margin-bottom:12px; }
+    .s-sv { font-size:16px; font-weight:700; }
+    .s-sl { font-size:10px; color:var(--text-muted); }
+    .s-actions { display:flex; gap:6px; justify-content:center; }
+    .reg-tag { position:absolute; top:10px; right:10px; font-size:10px; padding:3px 8px; border-radius:20px; }
+    /* Modal */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:1000; display:none; align-items:center; justify-content:center; }
+    .modal-overlay.active { display:flex; }
+    .modal { background:var(--bg-secondary); border:1px solid var(--border-glass); border-radius:20px; padding:28px; width:90%; max-width:520px; max-height:90vh; overflow-y:auto; }
+    .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .cam-box { border:2px solid var(--border-neon); border-radius:12px; overflow:hidden; background:#000; position:relative; margin-bottom:12px; }
+    .cam-box video { width:100%; display:block; }
+    .dots-row { display:flex; gap:6px; justify-content:center; margin:8px 0; }
+    .dot { width:12px; height:12px; border-radius:50%; background:rgba(255,255,255,0.1); border:1px solid var(--border-glass); transition:var(--transition); }
+    .dot.filled { background:var(--neon-blue); box-shadow:0 0 6px var(--neon-blue); }
+    .dot.trained { background:var(--neon-green); box-shadow:0 0 6px var(--neon-green); }
+    @media(max-width:768px) { .sidebar { transform:translateX(-100%); } .main-content { margin-left:0; } .topbar,.content { padding-left:16px; padding-right:16px; } }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/face-engine.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<canvas id="cap-canvas" style="display:none;"></canvas>
+
+<div id="sidebar-wrap"></div>
+
+<div class="main-content">
+  <header class="topbar">
+    <h1 style="font-size:18px;font-weight:700;">Student Management</h1>
+    <button class="btn-primary" onclick="openAdd()"><i data-lucide="user-plus"></i> Add Student</button>
+  </header>
+  <div class="content">
+    <div class="toolbar">
+      <div class="search-bar"><i data-lucide="search"></i><input type="text" placeholder="Search students..." oninput="filterStudents(this.value)"></div>
+      <div style="font-size:13px;color:var(--text-muted);" id="student-count">Loading...</div>
+    </div>
+    <div class="grid" id="student-grid">
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted);">Loading students...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD STUDENT MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Register New Student</h3>
+      <button onclick="closeAdd()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);">X</button>
+    </div>
+    <div class="form-group"><label>Full Name</label><input type="text" id="add-name" placeholder="e.g. Ravi Kumar"></div>
+    <div class="form-group"><label>Department</label><input type="text" id="add-dept" placeholder="e.g. Computer Science"></div>
+    <div class="form-group"><label>Student ID (USN)</label><input type="text" id="add-sid" placeholder="e.g. 1RV21CS001"></div>
+    <div class="form-group"><label>Student Email (for login)</label><input type="email" id="add-email" placeholder="student@university.edu"></div>
+    <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="create-login" onchange="document.getElementById('pw-group').style.display=this.checked?'block':'none'">
+      <label for="create-login" style="margin:0;cursor:pointer;font-size:13px;font-weight:600;">Create Login Account for Student?</label>
+    </div>
+    <div class="form-group" id="pw-group" style="display:none;">
+      <label>Temporary Password</label>
+      <input type="password" id="add-pass" placeholder="Min 8 characters">
+    </div>
+    <div class="form-group">
+      <label>Face Capture — 5 Photos for FaceNet-128 Training</label>
+      <div class="cam-box" style="height:220px;"><video id="reg-video" autoplay playsinline muted style="height:100%;object-fit:cover;transform:scaleX(-1);"></video></div>
+      <div class="dots-row" id="dots-row">
+        <div class="dot" id="dot-0"></div><div class="dot" id="dot-1"></div>
+        <div class="dot" id="dot-2"></div><div class="dot" id="dot-3"></div><div class="dot" id="dot-4"></div>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:8px;" id="cap-status">Position student's face in frame</div>
+      <button class="btn-secondary" style="width:100%;padding:12px;justify-content:center;" onclick="captureFrame()" id="cap-btn"><i data-lucide="camera"></i> Capture Face</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn-secondary" style="flex:1;" onclick="closeAdd()">Cancel</button>
+      <button class="btn-primary" style="flex:2;" onclick="submitStudent()" id="submit-btn" disabled><i data-lucide="cpu"></i> Register & Extract Features</button>
+    </div>
+  </div>
+</div>
+
+<script>
+requireAuth('teacher', '../');
+
+const faceEng = new FaceEngine();
+let allStudents = [], capturedDescriptors = [], capCount = 0, regStream = null;
+
+// Secondary app for creating accounts without logging admin out
+const secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
+const secondaryAuth = secondaryApp.auth();
+
+document.addEventListener('authReady', async () => {
+  document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('students.html');
+  await faceEng.loadModels(null, true);  // lightweight — skip heavy SSD model
+  lucide.createIcons();
+  loadStudents();
+});
+
+async function loadStudents() {
+  const snap = await db.collection('students').orderBy('name').get();
+  allStudents = [];
+  snap.forEach(d => allStudents.push({ id: d.id, ...d.data() }));
+  renderStudents(allStudents);
+}
+
+function renderStudents(list) {
+  const grid = document.getElementById('student-grid');
+  document.getElementById('student-count').textContent = `${list.length} student${list.length!==1?'s':''}`;
+  if (!list.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-muted);">No students yet. Add your first student.</div>'; return; }
+  grid.innerHTML = list.map(s => {
+    const hasDesc = s.descriptors && (typeof s.descriptors === 'object') && Object.keys(s.descriptors).length > 0;
+    return `<div class="s-card fade-in">
+      <span class="reg-tag badge ${hasDesc?'badge-green':'badge-orange'}">${hasDesc?'Trained':'No Face'}</span>
+      <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1e3a5f&color=38bdf8&size=128" class="s-avatar">
+      <div class="s-name">${s.name}</div>
+      <div class="s-uid">${s.studentId ? s.studentId + ' · ' : ''}${s.dept||'Engineering'}</div>
+      <div class="s-actions">
+        <button class="btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="retrain('${s.id}','${s.name}')"><i data-lucide="refresh-cw"></i> Retrain</button>
+        <button class="btn-danger" style="padding:6px 10px;font-size:11px;" onclick="deleteStudent('${s.id}','${s.name}')"><i data-lucide="trash-2"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+  lucide.createIcons();
+}
+
+function filterStudents(q) { renderStudents(allStudents.filter(s => s.name.toLowerCase().includes(q.toLowerCase()))); }
+
+// ── ADD STUDENT ───────────────────────────────────────────────────────────
+async function openAdd() {
+  capturedDescriptors = []; capCount = 0; updateDots();
+  document.getElementById('add-name').value = '';
+  document.getElementById('add-dept').value = '';
+  document.getElementById('add-sid').value = '';
+  document.getElementById('add-email').value = '';
+  document.getElementById('add-pass').value = '';
+  document.getElementById('create-login').checked = false;
+  document.getElementById('pw-group').style.display = 'none';
+  document.getElementById('addModal').classList.add('active');
+  try {
+    regStream = await navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 480, max: 720 } }, 
+      audio: false 
+    });
+    document.getElementById('reg-video').srcObject = regStream;
+  } catch(e) { showToast('Camera access denied', 'error'); }
+  lucide.createIcons();
+}
+
+function closeAdd() {
+  document.getElementById('addModal').classList.remove('active');
+  if (regStream) { regStream.getTracks().forEach(t => t.stop()); regStream = null; }
+}
+
+async function captureFrame() {
+  if (capCount >= 5) return;
+  const video = document.getElementById('reg-video');
+  const capBtn = document.getElementById('cap-btn');
+  capBtn.disabled = true;
+  document.getElementById('cap-status').textContent = 'Extracting FaceNet-128 descriptor...';
+
+  const desc = await faceEng.extractDescriptor(video);
+  if (!desc) {
+    document.getElementById('cap-status').textContent = 'No face detected — center your face and try again';
+    capBtn.disabled = false;
+    return;
+  }
+
+  capturedDescriptors.push(desc);
+  capCount++;
+  updateDots();
+  document.getElementById('cap-status').textContent = `Capture ${capCount}/5 — ${capCount<5?'Move head slightly for next capture':'All captures done!'}`;
+  document.getElementById('submit-btn').disabled = capCount < 5;
+  capBtn.disabled = capCount >= 5;
+  lucide.createIcons();
+}
+
+function updateDots() {
+  for (let i = 0; i < 5; i++) {
+    document.getElementById(`dot-${i}`).className = 'dot' + (i < capCount ? ' trained' : '');
+  }
+}
+
+async function submitStudent() {
+  const name  = document.getElementById('add-name').value.trim();
+  const dept  = document.getElementById('add-dept').value.trim() || 'Engineering';
+  const email = document.getElementById('add-email').value.trim();
+  const sid   = document.getElementById('add-sid').value.trim();
+  const pass  = document.getElementById('add-pass').value;
+  const doLogin = document.getElementById('create-login').checked;
+
+  if (!name || capturedDescriptors.length < 5) { showToast('Enter name and capture 5 face images', 'error'); return; }
+  if (doLogin && pass.length < 8) { showToast('Password must be at least 8 characters', 'error'); return; }
+  if (doLogin && !email) { showToast('Email required to create login', 'error'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:0 auto;"></div> Processing...';
+
+  try {
+    // Validate duplicate student
+    if (email) {
+      const existSnap = await db.collection('students').where('email', '==', email).get();
+      if (!existSnap.empty) {
+        showToast('Student with this email already exists!', 'error');
+        btn.disabled = false; btn.innerHTML = '<i data-lucide="cpu"></i> Register & Extract Features'; lucide.createIcons();
+        return;
+      }
+    }
+
+    let authUid = null;
+
+    // Create Firebase Auth account if requested (uses secondary app to keep admin logged in)
+    if (doLogin) {
+      const cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
+      authUid = cred.user.uid;
+      
+      // Setup role-based user profile
+      await db.collection('users').doc(authUid).set({
+        name, email, role: 'student', studentId: sid,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await secondaryAuth.signOut();
+    }
+
+    // Compute mean descriptor for robustness
+    const meanDesc = Array.from(faceEng._meanDescriptor(capturedDescriptors));
+
+    // Convert descriptors to a Firestore-compatible map
+    const descriptorMap = {};
+    capturedDescriptors.forEach((d, i) => { descriptorMap[`d${i}`] = Array.from(d); });
+
+    await db.collection('students').add({
+      name, dept, email, studentId: sid,
+      uid: authUid, // Link auth if created
+      descriptors: descriptorMap,
+      meanDescriptor: meanDesc,
+      registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+      addedBy: auth.currentUser.uid
+    });
+
+    showToast(`${name} registered successfully!`, 'success');
+    closeAdd();
+    loadStudents();
+  } catch(e) {
+    showToast(e.code === 'auth/email-already-in-use' ? 'Email already registered in system.' : 'Error: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.innerHTML = '<i data-lucide="cpu"></i> Register & Extract Features'; lucide.createIcons();
+}
+
+async function deleteStudent(id, name) {
+  if (!confirm(`Delete ${name}? This removes all their face data.`)) return;
+  await db.collection('students').doc(id).delete();
+  showToast(`${name} removed`, 'success');
+  loadStudents();
+}
+
+async function retrain(id, name) {
+  capturedDescriptors = []; capCount = 0;
+  document.getElementById('add-name').value = name;
+  document.getElementById('addModal').classList.add('active');
+  try {
+    regStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+    document.getElementById('reg-video').srcObject = regStream;
+    document.getElementById('submit-btn').onclick = async () => {
+      if (capturedDescriptors.length < 5) { showToast('Capture 5 images first','error'); return; }
+      const meanDesc = Array.from(faceEng._meanDescriptor(capturedDescriptors));
+      const descriptorMap = {};
+      capturedDescriptors.forEach((d, i) => { descriptorMap[`d${i}`] = Array.from(d); });
+      await db.collection('students').doc(id).update({ descriptors: descriptorMap, meanDescriptor:meanDesc });
+      showToast(`${name} retrained!`, 'success'); closeAdd(); loadStudents();
+    };
+  } catch(e) { showToast('Camera denied', 'error'); }
+  updateDots(); lucide.createIcons();
+}
+
+lucide.createIcons();
+</script>
+</body>
+</html>

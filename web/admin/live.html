@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Scan — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
+    .sidebar-logo { padding:0 20px; margin-bottom:36px; }
+    .sidebar-menu { flex:1; display:flex; flex-direction:column; gap:4px; padding:0 12px; }
+    .menu-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:10px; color:var(--text-secondary); text-decoration:none; font-size:13px; font-weight:500; transition:var(--transition); }
+    .menu-item:hover,.menu-item.active { background:rgba(56,189,248,0.1); color:var(--neon-blue); }
+    .menu-icon { width:20px; height:20px; flex-shrink:0; }
+    .sidebar-footer { padding:16px 12px 0; border-top:1px solid var(--border-glass); }
+    .user-profile { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .user-info h4 { font-size:13px; font-weight:600; } .user-info p { font-size:11px; color:var(--text-muted); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); display:flex; flex-direction:column; min-height:100vh; }
+    .topbar { height:64px; padding:0 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-glass); background:rgba(2,8,23,0.8); backdrop-filter:blur(20px); position:sticky; top:0; z-index:90; }
+    .live-grid { display:grid; grid-template-columns:1fr 340px; height:calc(100vh - 64px); }
+    .cam-panel { padding:20px; display:flex; flex-direction:column; gap:12px; }
+    .cam-wrap { position:relative; flex:1; border-radius:16px; overflow:hidden; border:1px solid var(--border-glass); background:#000; min-height:300px; }
+    #live-video { width:100%; height:100%; object-fit:cover; display:block; }
+    #live-canvas { position:absolute; inset:0; width:100%; height:100%; }
+    .scanline { position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--neon-blue),transparent); animation:scan 3s linear infinite; }
+    .status-bar { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:12px; padding:14px 18px; display:flex; align-items:center; gap:14px; }
+    .feed-panel { border-left:1px solid var(--border-glass); display:flex; flex-direction:column; }
+    .feed-header { padding:16px 18px; border-bottom:1px solid var(--border-glass); }
+    .feed-header h3 { font-size:15px; font-weight:700; }
+    .feed-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border-glass); }
+    .fs { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:10px; padding:10px 12px; }
+    .fs-num { font-family:'Orbitron',sans-serif; font-size:20px; font-weight:700; }
+    .fs-lbl { font-size:11px; color:var(--text-muted); }
+    .feed-list { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
+    .fi { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; animation:slideInLeft .3s ease; }
+    .fi.present { border-left:3px solid var(--neon-green); }
+    .fi-av { width:36px; height:36px; border-radius:8px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
+    .fi-name { font-size:13px; font-weight:600; }
+    .fi-meta { font-size:11px; color:var(--text-muted); }
+    .fi-time { margin-left:auto; font-size:11px; color:var(--text-muted); }
+    @media(max-width:900px) { .live-grid { grid-template-columns:1fr; height:auto; } .feed-panel { max-height:350px; } .sidebar { transform:translateX(-100%); } .main-content { margin-left:0; } }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/face-engine.js"></script>
+  <script src="../js/liveness.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="sidebar-wrap"></div>
+
+<div class="main-content">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <h1 style="font-size:18px;font-weight:700;">Live Face Scan</h1>
+      <span class="badge badge-red" style="animation:blink 1s infinite;font-size:10px;">LIVE</span>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-secondary" onclick="toggleScan()" id="toggle-btn"><i data-lucide="pause"></i> Pause</button>
+      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);align-self:center;"></span>
+    </div>
+  </header>
+
+  <div class="live-grid">
+    <div class="cam-panel">
+      <div class="cam-wrap">
+        <video id="live-video" autoplay playsinline muted></video>
+        <canvas id="live-canvas"></canvas>
+        <div class="scanline"></div>
+      </div>
+      <div class="status-bar">
+        <div style="font-size:24px;" id="st-icon"><i data-lucide="loader" style="width:24px;height:24px;"></i></div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:700;" id="st-main">Initializing...</div>
+          <div style="font-size:12px;color:var(--text-muted);" id="st-detail">Loading FaceNet-128 models</div>
+        </div>
+        <div class="spinner" id="st-spin"></div>
+      </div>
+    </div>
+
+    <div class="feed-panel">
+      <div class="feed-header">
+        <h3><i data-lucide="clipboard-list"></i> Today's Attendance</h3>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto-updates in real-time</p>
+      </div>
+      <div class="feed-stats">
+        <div class="fs"><div class="fs-num" id="f-present" style="color:var(--neon-green);">0</div><div class="fs-lbl">Present</div></div>
+        <div class="fs"><div class="fs-num" id="f-unknown" style="color:#f87171;">0</div><div class="fs-lbl">Unknown</div></div>
+      </div>
+      <div class="feed-list" id="feed-list">
+        <div style="text-align:center;color:var(--text-muted);padding:30px;font-size:13px;">Waiting for faces...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+requireAuth('teacher', '../');
+
+const faceEng  = new FaceEngine();
+const livEng   = new LivenessEngine();
+let scanning   = true, detecting = false, unknownCount = 0;
+const marked   = new Map(); // name → timestamp (cooldown)
+const TODAY    = new Date().toISOString().split('T')[0];
+
+document.addEventListener('authReady', async () => {
+  document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('live.html');
+  lucide.createIcons();
+  setInterval(() => { const el = document.getElementById('clock'); if(el) el.textContent = new Date().toLocaleTimeString(); }, 1000);
+
+  setStatus('loading','Loading AI models...','FaceNet-128 + SSD MobileNet + TinyFaceDetector');
+  await faceEng.loadModels(msg => setStatus('loading', msg, 'Please wait...'));
+  const n = await faceEng.loadFromFirestore();
+  setStatus('ready', `Ready — ${n} students loaded`, 'Scanning for faces every 2 seconds');
+
+  await startCamera();
+  subscribeToday();
+  setInterval(doDetect, 2000);
+});
+
+async function startCamera() {
+  const v = document.getElementById('live-video');
+  const s = await navigator.mediaDevices.getUserMedia({ video:{ width:1280, height:720 }, audio:false });
+  v.srcObject = s;
+  await new Promise(r => { v.onloadedmetadata = r; setTimeout(r, 2000); });
+}
+
+async function doDetect() {
+  if (!scanning || detecting) return;
+  detecting = true;
+  const video = document.getElementById('live-video');
+  const canvas = document.getElementById('live-canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  try {
+    const results = await faceEng.detectAll(video);
+    if (results.length === 0) {
+      setStatus('scanning','Scanning...','No faces detected'); detecting=false; return;
+    }
+
+    setStatus('detecting', `${results.length} face${results.length>1?'s':''} detected`, 'Running FaceNet-128 recognition...');
+
+    for (const { box, match } of results) {
+      const scaleX = canvas.width / video.videoWidth, scaleY = canvas.height / video.videoHeight;
+      const bx = box.x*scaleX, by = box.y*scaleY, bw = box.width*scaleX, bh = box.height*scaleY;
+
+      // Draw bounding box
+      ctx.strokeStyle = match.matched ? '#4ade80' : '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, by, bw, bh);
+
+      // Label
+      ctx.fillStyle = match.matched ? 'rgba(74,222,128,0.85)' : 'rgba(239,68,68,0.85)';
+      ctx.fillRect(bx, by - 26, bw, 26);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.fillText(
+        match.matched ? `${match.name} (${Math.round(match.confidence*100)}%)` : 'Unknown',
+        bx + 6, by - 8
+      );
+
+      // Auto-mark if matched and not in cooldown
+      if (match.matched) {
+        const last = marked.get(match.name);
+        if (!last || Date.now() - last > 300000) { // 5 min cooldown
+          marked.set(match.name, Date.now());
+          await markPresent(match);
+        }
+      } else {
+        unknownCount++;
+        document.getElementById('f-unknown').textContent = unknownCount;
+      }
+    }
+    setStatus('done', 'Scan complete', `${results.filter(r=>r.match.matched).length} recognized`);
+  } catch(e) { console.error(e); }
+  detecting = false;
+}
+
+async function markPresent(match) {
+  const now = new Date();
+  // Use auth UID when available (linked student), else Firestore doc ID
+  const sid = match.uid || match.id;
+  const docId = `${TODAY}_${sid}`;
+  const existing = await db.collection('attendance').doc(docId).get();
+  if (existing.exists && existing.data().status === 'Present') return;
+
+  await db.collection('attendance').doc(docId).set({
+    studentId: sid, name: match.name, date: TODAY,
+    time: now.toLocaleTimeString('en-IN'), status: 'Present',
+    method: 'AI Live Scan', confidence: match.confidence,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  showToast(`${match.name} marked present (${Math.round(match.confidence*100)}%)`, 'success');
+}
+
+function subscribeToday() {
+  db.collection('attendance').where('date','==',TODAY)
+    .onSnapshot(snap => {
+      document.getElementById('f-present').textContent = snap.size;
+      const list = document.getElementById('feed-list');
+      const recs = [];
+      snap.forEach(d => recs.push(d.data()));
+      recs.sort((a,b) => (b.time||'').localeCompare(a.time||''));
+      list.innerHTML = recs.slice(0,20).map(r => `
+        <div class="fi present">
+          <div class="fi-av">${(r.name||'?')[0].toUpperCase()}</div>
+          <div><div class="fi-name">${r.name}</div><div class="fi-meta">${r.method||'AI'} · ${r.confidence?Math.round(r.confidence*100)+'%':''}</div></div>
+          <div class="fi-time">${r.time||''}</div>
+        </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No attendance yet</div>';
+      lucide.createIcons();
+    });
+}
+
+function setStatus(type, main, detail) {
+  const iconMap = { loading:'settings', ready:'camera', scanning:'eye', detecting:'search', done:'check-circle' };
+  const name = iconMap[type] || 'loader';
+  document.getElementById('st-icon').innerHTML = `<i data-lucide="${name}" style="width:24px;height:24px;"></i>`;
+  document.getElementById('st-main').textContent = main;
+  document.getElementById('st-detail').textContent = detail;
+  lucide.createIcons();
+}
+
+function toggleScan() {
+  scanning = !scanning;
+  const btn = document.getElementById('toggle-btn');
+  btn.innerHTML = scanning ? '<i data-lucide="pause"></i> Pause' : '<i data-lucide="play"></i> Resume';
+  lucide.createIcons();
+}
+
+lucide.createIcons();
+</script>
+</body>
+</html>

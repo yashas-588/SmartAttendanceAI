@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Smart AI Attendance</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--gradient-bg); padding:20px; }
+    .login-wrap { width:100%; max-width:440px; }
+    .login-card { background:var(--bg-glass); backdrop-filter:blur(24px); border:1px solid var(--border-glass); border-radius:24px; padding:40px 36px; box-shadow:var(--shadow-card); }
+    .login-logo { text-align:center; margin-bottom:32px; }
+    .login-logo img { height:56px; border-radius:12px; box-shadow:0 0 20px rgba(56,189,248,0.4); }
+    .login-title { font-family:'Orbitron',sans-serif; font-size:22px; font-weight:700; text-align:center; background:var(--gradient-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:6px; }
+    .login-sub { text-align:center; font-size:13px; color:var(--text-muted); margin-bottom:32px; }
+
+    .tab-row { display:flex; background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:12px; padding:4px; margin-bottom:28px; }
+    .tab-btn { flex:1; padding:10px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; background:transparent; color:var(--text-muted); transition:var(--transition); }
+    .tab-btn.active { background:var(--gradient-primary); color:#fff; }
+
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px; }
+    .input-wrap { position:relative; }
+    .input-wrap i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); width:16px; height:16px; }
+    .input-wrap input { padding-left:44px; }
+    input { background:rgba(255,255,255,0.05); border:1px solid var(--border-glass); border-radius:10px; color:var(--text-primary); padding:12px 16px; font-size:14px; width:100%; outline:none; transition:var(--transition); }
+    input:focus { border-color:var(--neon-blue); box-shadow:0 0 0 3px rgba(56,189,248,0.1); }
+
+    .btn-login { width:100%; padding:14px; font-size:15px; font-weight:700; border-radius:12px; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .divider { text-align:center; color:var(--text-muted); font-size:12px; margin:20px 0; position:relative; }
+    .divider::before,.divider::after { content:''; position:absolute; top:50%; width:42%; height:1px; background:var(--border-glass); }
+    .divider::before { left:0; } .divider::after { right:0; }
+
+    .forgot-link { text-align:center; font-size:12px; color:var(--text-muted); margin-top:16px; }
+    .forgot-link a { color:var(--neon-blue); text-decoration:none; }
+
+    .error-box { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:12px 16px; font-size:13px; color:#f87171; margin-bottom:16px; display:none; }
+
+    .role-info { display:flex; gap:12px; margin-top:20px; }
+    .role-pill { flex:1; text-align:center; padding:12px 8px; border-radius:10px; border:1px solid var(--border-glass); font-size:12px; }
+    .role-pill .ri { font-size:22px; margin-bottom:6px; }
+    .role-pill h4 { font-size:13px; font-weight:600; margin-bottom:2px; }
+    .role-pill p { font-size:11px; color:var(--text-muted); }
+    .role-pill.teacher { border-color:rgba(56,189,248,0.3); background:rgba(56,189,248,0.05); }
+    .role-pill.student { border-color:rgba(167,139,250,0.3); background:rgba(167,139,250,0.05); }
+
+    @media(max-width:480px) { .login-card { padding:28px 20px; } }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo"><img src="logo.png" alt="Logo"></div>
+    <div class="login-title">Smart AI Attendance</div>
+    <div class="login-sub">IEEE-grade face recognition system</div>
+
+    <!-- TABS -->
+    <div class="tab-row">
+      <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn" id="tab-signup" onclick="switchTab('signup')">Create Account</button>
+    </div>
+
+    <div id="error-box" class="error-box"></div>
+
+    <!-- SIGN IN -->
+    <div id="form-login">
+      <div class="form-group">
+        <label>Email Address</label>
+        <div class="input-wrap">
+          <i data-lucide="mail"></i>
+          <input type="email" id="login-email" placeholder="you@university.edu">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <div class="input-wrap">
+          <i data-lucide="lock"></i>
+          <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
+        </div>
+      </div>
+      <button class="btn-primary btn-login" onclick="doLogin()" id="login-btn">
+        <i data-lucide="log-in"></i> Sign In
+      </button>
+      <div class="forgot-link"><a href="#" onclick="doForgot()">Forgot password?</a></div>
+    </div>
+
+    <!-- SIGN UP -->
+    <div id="form-signup" style="display:none;">
+      <div class="form-group">
+        <label>Full Name</label>
+        <div class="input-wrap">
+          <i data-lucide="user"></i>
+          <input type="text" id="su-name" placeholder="Your full name">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email Address</label>
+        <div class="input-wrap">
+          <i data-lucide="mail"></i>
+          <input type="email" id="su-email" placeholder="you@university.edu">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <div class="input-wrap">
+          <i data-lucide="lock"></i>
+          <input type="password" id="su-pass" placeholder="Min 8 characters">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select id="su-role" style="padding:12px 16px; background:rgba(255,255,255,0.05);">
+          <option value="student">Student</option>
+          <option value="teacher">Teacher / Admin</option>
+        </select>
+      </div>
+      <div class="form-group" id="su-sid-wrap">
+        <label>Student ID (USN)</label>
+        <div class="input-wrap">
+          <i data-lucide="badge"></i>
+          <input type="text" id="su-sid" placeholder="e.g. 1RV21CS001">
+        </div>
+      </div>
+      <button class="btn-primary btn-login" onclick="doSignup()" id="signup-btn">
+        <i data-lucide="user-plus"></i> Create Account
+      </button>
+    </div>
+
+    <!-- ROLE INFO -->
+    <div class="role-info">
+      <div class="role-pill teacher">
+        <div class="ri"><i data-lucide="book-open" style="width:22px;height:22px;color:var(--neon-blue);"></i></div>
+        <h4>Teacher</h4>
+        <p>Full dashboard, live scan, manage students, reports</p>
+      </div>
+      <div class="role-pill student">
+        <div class="ri"><i data-lucide="user" style="width:22px;height:22px;color:var(--neon-purple);"></i></div>
+        <h4>Student</h4>
+        <p>Mark own attendance, view personal history</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Hide student ID when role = teacher
+  document.getElementById('su-role').addEventListener('change', e => {
+    document.getElementById('su-sid-wrap').style.display = e.target.value === 'student' ? 'block' : 'none';
+  });
+
+  function switchTab(tab) {
+    document.getElementById('form-login').style.display  = tab === 'login'  ? 'block' : 'none';
+    document.getElementById('form-signup').style.display = tab === 'signup' ? 'block' : 'none';
+    document.getElementById('tab-login').classList.toggle('active',  tab === 'login');
+    document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+    hideError();
+  }
+
+  function showError(msg) {
+    const b = document.getElementById('error-box');
+    b.textContent = msg; b.style.display = 'block';
+  }
+  function hideError() { document.getElementById('error-box').style.display = 'none'; }
+
+  function setLoading(id, loading, label) {
+    const btn = document.getElementById(id);
+    btn.disabled = loading;
+    btn.innerHTML = loading ? '<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:0 auto;"></div>' : label;
+  }
+
+  async function doLogin() {
+    hideError();
+    const email = document.getElementById('login-email').value.trim();
+    const pass  = document.getElementById('login-pass').value;
+    if (!email || !pass) { showError('Please fill in all fields.'); return; }
+    setLoading('login-btn', true, '');
+    try {
+      const cred = await auth.signInWithEmailAndPassword(email, pass);
+      let snap = await db.collection('users').doc(cred.user.uid).get();
+      if (!snap.exists) {
+        // Default to student if registered via Firebase Console to prevent unauthorized teacher access
+        await db.collection('users').doc(cred.user.uid).set({
+          email: cred.user.email,
+          role: 'student',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        snap = await db.collection('users').doc(cred.user.uid).get();
+      }
+      const data = snap.data();
+      const role = (data.role === 'admin') ? 'teacher' : (data.role || 'student');
+      window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
+    } catch(e) {
+      const authErrors = ['auth/wrong-password', 'auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-email'];
+      showError(authErrors.includes(e.code)
+        ? 'Invalid email or password. Please check your credentials.'
+        : e.message);
+    } finally { setLoading('login-btn', false, '<i data-lucide="log-in"></i> Sign In'); lucide.createIcons(); }
+  }
+
+  async function doSignup() {
+    hideError();
+    const name  = document.getElementById('su-name').value.trim();
+    const email = document.getElementById('su-email').value.trim();
+    const pass  = document.getElementById('su-pass').value;
+    const role  = document.getElementById('su-role').value;
+    const sid   = document.getElementById('su-sid').value.trim();
+    if (!name || !email || !pass) { showError('Please fill in all required fields.'); return; }
+    if (pass.length < 8) { showError('Password must be at least 8 characters.'); return; }
+    if (role === 'student' && !sid) { showError('Student ID (USN) is required.'); return; }
+    setLoading('signup-btn', true, '');
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+
+      // Build user profile
+      const userData = {
+        name, email, role,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if (role === 'student') {
+        userData.studentId = sid;
+      }
+
+      // Save to users collection (role source of truth)
+      await db.collection('users').doc(cred.user.uid).set(userData);
+
+      if (role === 'student') {
+        // Find existing admin-created student record by email to link face descriptors
+        const studentQuery = await db.collection('students').where('email', '==', email).get();
+        
+        if (!studentQuery.empty) {
+          // Link existing document to this auth user
+          const studentDocId = studentQuery.docs[0].id;
+          await db.collection('students').doc(studentDocId).update({
+            uid: cred.user.uid,
+            studentId: sid,
+            name: name // Update name to match signup
+          });
+        } else {
+          // Create new linked student record if admin hasn't registered them yet
+          await db.collection('students').add({
+            name, email,
+            uid: cred.user.uid,
+            studentId: sid,
+            dept: 'Engineering',
+            descriptors: {},
+            registeredAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      }
+
+      // Route to correct portal
+      window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
+    } catch(e) {
+      showError(e.code === 'auth/email-already-in-use' ? 'Email already registered.' : e.message);
+    } finally { setLoading('signup-btn', false, '<i data-lucide="user-plus"></i> Create Account'); lucide.createIcons(); }
+  }
+
+  async function doForgot() {
+    const email = document.getElementById('login-email').value.trim();
+    if (!email) { showError('Enter your email address first.'); return; }
+    await auth.sendPasswordResetEmail(email);
+    alert('Password reset email sent!');
+  }
+
+  // If already logged in, redirect
+  auth.onAuthStateChanged(async user => {
+    if (user) {
+      const snap = await db.collection('users').doc(user.uid).get();
+      if (snap.exists) {
+        const data = snap.data();
+        const role = (data.role === 'admin') ? 'teacher' : (data.role || 'student');
+        window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
+      }
+    }
+  });
+
+  lucide.createIcons();
+</script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
+    .sidebar-logo { padding:0 20px; margin-bottom:36px; }
+    .sidebar-menu { flex:1; display:flex; flex-direction:column; gap:4px; padding:0 12px; }
+    .menu-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:10px; color:var(--text-secondary); text-decoration:none; font-size:13px; font-weight:500; transition:var(--transition); }
+    .menu-item:hover,.menu-item.active { background:rgba(56,189,248,0.1); color:var(--neon-blue); }
+    .menu-icon { width:20px; height:20px; flex-shrink:0; }
+    .sidebar-footer { padding:16px 12px 0; border-top:1px solid var(--border-glass); }
+    .user-profile { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .user-info h4 { font-size:13px; font-weight:600; }
+    .user-info p { font-size:11px; color:var(--text-muted); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); display:flex; flex-direction:column; min-height:100vh; }
+    .topbar { height:64px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-glass); background:rgba(2,8,23,0.8); backdrop-filter:blur(20px); position:sticky; top:0; z-index:90; }
+    .content { padding:28px 32px; max-width:800px; }
+    .sect { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; padding:24px; margin-bottom:20px; }
+    .sect-title { font-size:16px; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+    .sect-desc { font-size:12px; color:var(--text-muted); margin-bottom:20px; }
+    .row { display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.04); gap:16px; }
+    .row:last-child { border-bottom:none; padding-bottom:0; }
+    .row-info h4 { font-size:14px; font-weight:600; margin-bottom:3px; }
+    .row-info p { font-size:12px; color:var(--text-muted); max-width:380px; }
+    /* Toggle */
+    .toggle { position:relative; display:inline-block; width:46px; height:24px; flex-shrink:0; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; cursor:pointer; inset:0; background:rgba(255,255,255,0.1); border:1px solid var(--border-glass); border-radius:24px; transition:.3s; }
+    .toggle-slider:before { content:''; position:absolute; width:16px; height:16px; left:4px; bottom:3px; background:var(--text-muted); border-radius:50%; transition:.3s; }
+    input:checked + .toggle-slider { background:rgba(56,189,248,0.2); border-color:var(--neon-blue); }
+    input:checked + .toggle-slider:before { transform:translateX(22px); background:var(--neon-blue); box-shadow:0 0 8px var(--neon-blue); }
+    /* Map */
+    #map-container { border:1px solid var(--border-glass); border-radius:12px; overflow:hidden; height:260px; background:#0d1526; position:relative; }
+    #map-container iframe { width:100%; height:100%; border:none; }
+    .map-overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(2,8,23,0.85); gap:12px; }
+    .loc-display { background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:12px 16px; font-size:12px; font-family:monospace; }
+    @media(max-width:768px) { .sidebar { transform:translateX(-100%); } .main-content { margin-left:0; } .content,.topbar { padding-left:16px; padding-right:16px; } }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="sidebar-wrap"></div>
+
+<div class="main-content">
+  <header class="topbar">
+    <h1 style="font-size:18px;font-weight:700;">System Settings</h1>
+    <button class="btn-primary" onclick="saveAll()"><i data-lucide="save"></i> Save All</button>
+  </header>
+  <div class="content">
+
+    <!-- CLASSROOM LOCATION -->
+    <div class="sect">
+      <div class="sect-title"><i data-lucide="map-pin" style="color:var(--neon-blue);width:18px;height:18px;"></i> Classroom Location</div>
+      <div class="sect-desc">Pin your classroom GPS coordinates. Students must be physically present at this location to mark attendance.</div>
+      <div id="map-container">
+        <div class="map-overlay" id="map-overlay">
+          <i data-lucide="map-pin" style="width:40px;height:40px;color:var(--neon-blue);"></i>
+          <p style="color:var(--text-secondary);font-size:14px;text-align:center;">Click below to detect your<br>current classroom location</p>
+          <button class="btn-primary" onclick="detectLocation()" id="detect-btn"><i data-lucide="crosshair"></i> Use My Current Location</button>
+          <div class="loc-display" id="loc-display" style="display:none;"><i data-lucide="map-pin" style="width:12px;height:12px;"></i> <span id="loc-coords"></span></div>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="row">
+          <div class="row-info"><h4>Location Check Enabled</h4><p>Students must be at classroom GPS coordinates to mark attendance</p></div>
+          <label class="toggle"><input type="checkbox" id="loc-enabled" checked><span class="toggle-slider"></span></label>
+        </div>
+        <div class="row">
+          <div class="row-info"><h4>Allowed Radius (metres)</h4><p>Default: 10m. Min 5m, Max 10m for strict geofencing.</p></div>
+          <input type="number" id="loc-radius" value="10" min="5" max="10" style="width:90px;text-align:center;">
+        </div>
+      </div>
+    </div>
+
+    <!-- AI ENGINE -->
+    <div class="sect">
+      <div class="sect-title"><i data-lucide="cpu" style="color:var(--neon-purple);width:18px;height:18px;"></i> AI Recognition Settings</div>
+      <div class="sect-desc">Configure FaceNet-128 matching and anti-spoofing thresholds.</div>
+      <div class="row">
+        <div class="row-info"><h4>Face Similarity Threshold</h4><p>Maximum Euclidean distance to consider a match. Lower = stricter. FaceNet paper recommends 0.45 (EER on LFW benchmark).</p></div>
+        <input type="number" id="face-thresh" value="0.45" min="0.3" max="0.7" step="0.01" style="width:90px;text-align:center;">
+      </div>
+      <div class="row">
+        <div class="row-info"><h4>Anti-Spoofing: All Layers Active</h4><p>LBP texture + rPPG blood-flow signal + blink challenge. Disable only for testing.</p></div>
+        <label class="toggle"><input type="checkbox" id="antispoofing-on" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="row">
+        <div class="row-info"><h4>LBP Texture Threshold</h4><p>Minimum % of uniform LBP patterns. Real faces: ~65%+. Photos: lower. Default: 30.</p></div>
+        <input type="number" id="lbp-thresh" value="30" min="10" max="80" style="width:90px;text-align:center;">
+      </div>
+      <div class="row">
+        <div class="row-info"><h4>Blink Challenge Timeout (seconds)</h4><p>How long the student has to blink. Recommended: 6s.</p></div>
+        <input type="number" id="blink-timeout" value="6" min="3" max="15" style="width:90px;text-align:center;">
+      </div>
+    </div>
+
+    <!-- COOLDOWN -->
+    <div class="sect">
+      <div class="sect-title"><i data-lucide="clock" style="color:var(--neon-green);width:18px;height:18px;"></i> Attendance Rules</div>
+      <div class="sect-desc">Control attendance marking behavior and cooldown periods.</div>
+      <div class="row">
+        <div class="row-info"><h4>Mark Once Per Day</h4><p>Students can only mark attendance once per calendar day</p></div>
+        <label class="toggle"><input type="checkbox" id="once-per-day" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="row">
+        <div class="row-info"><h4>Attendance Window</h4><p>Students can only mark during these hours</p></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="time" id="att-start" value="08:00" style="width:110px;">
+          <span style="color:var(--text-muted);">to</span>
+          <input type="time" id="att-end" value="10:00" style="width:110px;">
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+requireAuth('teacher', '../');
+let savedLocation = null;
+
+document.addEventListener('authReady', async () => {
+  document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('settings.html');
+  lucide.createIcons();
+  loadSettings();
+});
+
+async function loadSettings() {
+  const snap = await db.collection('settings').doc('classroom').get();
+  if (!snap.exists) return;
+  const d = snap.data();
+  if (d.location) {
+    savedLocation = d.location;
+    showSavedLocation(d.location);
+  }
+  if (d.locationCheckEnabled !== undefined) document.getElementById('loc-enabled').checked = d.locationCheckEnabled;
+  if (d.locationRadius) document.getElementById('loc-radius').value = d.locationRadius;
+  if (d.faceThreshold) document.getElementById('face-thresh').value = d.faceThreshold;
+  if (d.lbpThreshold) document.getElementById('lbp-thresh').value = d.lbpThreshold;
+  if (d.blinkTimeout) document.getElementById('blink-timeout').value = d.blinkTimeout;
+  if (d.antispoofing !== undefined) document.getElementById('antispoofing-on').checked = d.antispoofing;
+  if (d.oncePerDay !== undefined) document.getElementById('once-per-day').checked = d.oncePerDay;
+  if (d.windowStart) document.getElementById('att-start').value = d.windowStart;
+  if (d.windowEnd) document.getElementById('att-end').value = d.windowEnd;
+}
+
+function detectLocation() {
+  const btn = document.getElementById('detect-btn') || document.getElementById('repin-btn');
+  if (btn) { btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></div> Detecting...'; btn.disabled = true; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    savedLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    showSavedLocation(savedLocation);
+    showToast(`Classroom pinned at ${savedLocation.lat.toFixed(6)}, ${savedLocation.lon.toFixed(6)}`, 'success');
+  }, err => {
+    showToast('GPS error: ' + err.message, 'error');
+    if (btn) { btn.innerHTML = '<i data-lucide="refresh-cw"></i> Re-pin'; btn.disabled = false; }
+    lucide.createIcons();
+  }, { enableHighAccuracy: true, timeout: 15000 });
+}
+
+function showSavedLocation(loc) {
+  const overlay = document.getElementById('map-overlay');
+  document.getElementById('loc-display').style.display = 'block';
+  document.getElementById('loc-coords').textContent = `${loc.lat.toFixed(6)}, ${loc.lon.toFixed(6)}`;
+  // Show OpenStreetMap
+  document.getElementById('map-container').innerHTML =
+    `<iframe src="https://www.openstreetmap.org/export/embed.html?bbox=${loc.lon-0.002},${loc.lat-0.002},${loc.lon+0.002},${loc.lat+0.002}&layer=mapnik&marker=${loc.lat},${loc.lon}" loading="lazy"></iframe>
+     <div style="position:absolute;bottom:8px;right:8px;"><button class="btn-secondary" style="padding:5px 10px;font-size:11px;" id="repin-btn" onclick="detectLocation()"><i data-lucide="refresh-cw"></i> Re-pin</button></div>`;
+  lucide.createIcons();
+}
+
+async function saveAll() {
+  const settings = {
+    location: savedLocation,
+    locationCheckEnabled: document.getElementById('loc-enabled').checked,
+    locationRadius: Math.max(5, Math.min(10, parseInt(document.getElementById('loc-radius').value) || 10)),
+    faceThreshold: parseFloat(document.getElementById('face-thresh').value) || 0.45,
+    lbpThreshold: parseInt(document.getElementById('lbp-thresh').value) || 30,
+    blinkTimeout: parseInt(document.getElementById('blink-timeout').value) || 6,
+    antispoofing: document.getElementById('antispoofing-on').checked,
+    oncePerDay: document.getElementById('once-per-day').checked,
+    windowStart: document.getElementById('att-start').value,
+    windowEnd: document.getElementById('att-end').value,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await db.collection('settings').doc('classroom').set(settings, { merge: true });
+  showToast('Settings saved to Firestore!', 'success');
+}
+
+lucide.createIcons();
+</script>
+</body>
+</html>

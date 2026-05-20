@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap"
+    rel="stylesheet">
+  <style>
+    body {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: var(--sidebar-width);
+      background: rgba(2, 8, 23, 0.97);
+      border-right: 1px solid var(--border-glass);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 100;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      padding: 0 20px;
+      margin-bottom: 36px;
+    }
+
+    .sidebar-menu {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 0 12px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: 10px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+
+    .menu-item:hover,
+    .menu-item.active {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--neon-blue);
+    }
+
+    .menu-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+      padding: 16px 12px 0;
+      border-top: 1px solid var(--border-glass);
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .user-info h4 {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .user-info p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .main-content {
+      flex: 1;
+      margin-left: var(--sidebar-width);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      height: 64px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-glass);
+      background: rgba(2, 8, 23, 0.8);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 90;
+    }
+
+    .content {
+      padding: 28px 32px;
+    }
+
+    .filter-bar {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      border-radius: 16px;
+      padding: 20px 24px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .filter-bar .form-group {
+      margin-bottom: 0;
+      flex: 1;
+      min-width: 130px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .rcard {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      border-radius: 16px;
+      padding: 24px;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rcard::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+    }
+
+    .rcard.blue::before {
+      background: var(--gradient-primary);
+    }
+
+    .rcard.red::before {
+      background: linear-gradient(180deg, #ef4444, #991b1b);
+    }
+
+    .rcard.purple::before {
+      background: linear-gradient(180deg, #a78bfa, #6d28d9);
+    }
+
+    .rcard:hover {
+      border-color: var(--border-neon);
+      transform: translateY(-3px);
+    }
+
+    .ri {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .rt {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .rd {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+
+    .preview {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    .preview-hdr {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    @media(max-width:768px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+
+      .main-content {
+        margin-left: 0;
+      }
+
+      .topbar,
+      .content {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+    }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+
+<body>
+  <div id="toast-container"></div>
+  <div id="sidebar-wrap"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <h1 style="font-size:18px;font-weight:700;">Reports &amp; Export</h1>
+      <button class="btn-secondary" onclick="loadPreview()" style="padding:8px 16px;font-size:13px;"><i
+          data-lucide="refresh-cw"></i> Refresh</button>
+    </header>
+    <div class="content">
+      <!-- FILTERS -->
+      <div class="filter-bar">
+        <div class="form-group"><label>From</label><input type="date" id="f-from"></div>
+        <div class="form-group"><label>To</label><input type="date" id="f-to"></div>
+        <div class="form-group"><label>Quick</label>
+          <select id="f-quick" onchange="applyQuick()">
+            <option value="">Custom</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="all">All Time</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="loadPreview()"
+          style="align-self:flex-end;padding:10px 20px;">Apply</button>
+      </div>
+
+      <!-- DOWNLOAD CARDS -->
+      <div class="cards">
+        <div class="rcard blue">
+          <div class="ri"><i data-lucide="calendar"></i></div>
+          <div class="rt">Attendance Sheet</div>
+          <div class="rd">Full log with name, date, time, status, detection method &amp; confidence score.</div>
+          <button class="btn-primary" style="width:100%;padding:10px;" onclick="dlAttendance()"><i
+              data-lucide="download"></i> Download CSV</button>
+        </div>
+        <div class="rcard red">
+          <div class="ri"><i data-lucide="trending-down"></i></div>
+          <div class="rt">Defaulters List</div>
+          <div class="rd">Students with &lt;75% attendance for the selected period.</div>
+          <button class="btn-danger" style="width:100%;padding:10px;" onclick="dlDefaulters()"><i
+              data-lucide="download"></i> Download Defaulters</button>
+        </div>
+        <div class="rcard purple">
+          <div class="ri"><i data-lucide="bot"></i></div>
+          <div class="rt">AI Confidence Log</div>
+          <div class="rd">All AI face-matched records with FaceNet-128 similarity scores.</div>
+          <button class="btn-secondary"
+            style="width:100%;padding:10px;border-color:rgba(167,139,250,0.4);color:var(--neon-purple);"
+            onclick="dlAILog()"><i data-lucide="download"></i> Download AI Log</button>
+        </div>
+      </div>
+
+      <!-- PREVIEW -->
+      <div class="preview">
+        <div class="preview-hdr">
+          <h3 style="font-size:15px;font-weight:700;">Data Preview</h3>
+          <span id="preview-count" style="font-size:12px;color:var(--text-muted);">Loading...</span>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Method</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="preview-body">
+              <tr>
+                <td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Apply filter to load
+                  data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    requireAuth('teacher', '../');
+    let previewData = [];
+
+    document.addEventListener('authReady', () => {
+      document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('reports.html');
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('f-from').value = today;
+      document.getElementById('f-to').value = today;
+      document.getElementById('f-quick').value = 'today';
+      lucide.createIcons();
+      loadPreview();
+    });
+
+    function applyQuick() {
+      const v = document.getElementById('f-quick').value, n = new Date();
+      const fmt = d => d.toISOString().split('T')[0];
+      if (v === 'today') { document.getElementById('f-from').value = document.getElementById('f-to').value = fmt(n); }
+      else if (v === 'week') { const m = new Date(n); m.setDate(n.getDate() - n.getDay() + 1); document.getElementById('f-from').value = fmt(m); document.getElementById('f-to').value = fmt(n); }
+      else if (v === 'month') { document.getElementById('f-from').value = fmt(new Date(n.getFullYear(), n.getMonth(), 1)); document.getElementById('f-to').value = fmt(n); }
+      else if (v === 'all') { document.getElementById('f-from').value = '2020-01-01'; document.getElementById('f-to').value = fmt(n); }
+    }
+
+    async function loadPreview() {
+      document.getElementById('preview-count').textContent = 'Loading...';
+      document.getElementById('preview-body').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;"><div class="spinner" style="margin:auto;"></div></td></tr>';
+
+      let q = db.collection('attendance');
+      const snap = await q.limit(500).get();
+      const from = document.getElementById('f-from').value;
+      const to = document.getElementById('f-to').value;
+      previewData = [];
+      snap.forEach(d => {
+        const r = d.data();
+        if (from && r.date < from) return;
+        if (to && r.date > to) return;
+        previewData.push(r);
+      });
+
+      document.getElementById('preview-count').textContent = `${previewData.length} records`;
+      const colors = { Present: 'badge-green', Absent: 'badge-red', Late: 'badge-orange' };
+      document.getElementById('preview-body').innerHTML = previewData.slice(0, 50).map(r =>
+        `<tr>
+      <td style="font-weight:600;color:var(--neon-blue);">${r.name}</td>
+      <td>${r.date}</td><td>${r.time || '--'}</td>
+      <td><span class="badge ${colors[r.status] || 'badge-blue'} " style="font-size:11px;">${r.status}</span></td>
+      <td style="font-size:12px;color:var(--text-muted);">${r.method || 'AI Face'}</td>
+      <td style="font-size:12px;">${r.confidence !== undefined ? Math.round(r.confidence * 100) + '%' : '--'}</td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No records found</td></tr>';
+      lucide.createIcons();
+    }
+
+    function toCSV(rows, headers) {
+      const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      return [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+    }
+    function downloadCSV(csv, filename) {
+      const a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = filename; a.click();
+    }
+
+    async function dlAttendance() {
+      await loadPreview();
+      const csv = toCSV(
+        previewData.map(r => [r.name, r.date, r.time || '', r.status, r.method || 'AI Face', r.confidence !== undefined ? Math.round(r.confidence * 100) + '%' : '']),
+        ['Student Name', 'Date', 'Time', 'Status', 'Method', 'Confidence']
+      );
+      downloadCSV(csv, `attendance_${document.getElementById('f-from').value}_to_${document.getElementById('f-to').value}.csv`);
+      showToast('Attendance CSV downloaded!', 'success');
+    }
+
+    async function dlDefaulters() {
+      const studSnap = await db.collection('students').get();
+      const rows = [];
+      for (const doc of studSnap.docs) {
+        const s = doc.data();
+        // Use auth UID when linked, else Firestore doc ID (matches attendance record format)
+        const sid = s.uid || doc.id;
+        const pSnap = await db.collection('attendance').where('studentId', '==', sid).where('status', '==', 'Present').get();
+        const tSnap = await db.collection('attendance').where('studentId', '==', sid).get();
+        const pct = tSnap.size ? Math.round((pSnap.size / tSnap.size) * 100) : 0;
+        if (pct < 75) rows.push([s.name, pSnap.size, tSnap.size, pct + '%']);
+      }
+      downloadCSV(toCSV(rows, ['Student Name', 'Present Sessions', 'Total Sessions', 'Attendance %']), 'defaulters_report.csv');
+      showToast(`${rows.length} defaulters exported!`, 'success');
+    }
+
+    async function dlAILog() {
+      await loadPreview();
+      const aiOnly = previewData.filter(r => r.method === 'AI Face' || r.method === 'AI Live Scan');
+      downloadCSV(toCSV(
+        aiOnly.map(r => [r.name, r.date, r.time || '', r.status, r.method, r.confidence !== undefined ? Math.round(r.confidence * 100) + '%' : '', r.location ? `${r.location.lat},${r.location.lon}` : '']),
+        ['Student', 'Date', 'Time', 'Status', 'Method', 'FaceNet Confidence', 'GPS Location']
+      ), 'ai_confidence_log.csv');
+      showToast('AI log downloaded!', 'success');
+    }
+
+    lucide.createIcons();
+  </script>
+</body>
+
+</html>
