@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Attendance — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
+    .sidebar-logo { padding:0 20px; margin-bottom:36px; }
+    .sidebar-menu { flex:1; display:flex; flex-direction:column; gap:4px; padding:0 12px; }
+    .menu-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:10px; color:var(--text-secondary); text-decoration:none; font-size:13px; font-weight:500; transition:var(--transition); }
+    .menu-item:hover,.menu-item.active { background:rgba(56,189,248,0.1); color:var(--neon-blue); }
+    .menu-icon { width:20px; height:20px; flex-shrink:0; }
+    .sidebar-footer { padding:16px 12px 0; border-top:1px solid var(--border-glass); }
+    .user-profile { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .user-info h4 { font-size:13px; font-weight:600; } .user-info p { font-size:11px; color:var(--text-muted); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); display:flex; flex-direction:column; min-height:100vh; }
+    .topbar { height:64px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-glass); background:rgba(2,8,23,0.8); backdrop-filter:blur(20px); position:sticky; top:0; z-index:90; }
+    .content { padding:28px 32px; max-width:900px; }
+    .panel { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; overflow:hidden; }
+    .panel-hdr { padding:16px 20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center; }
+    .s-row { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,0.04); transition:var(--transition); }
+    .s-row:last-child { border-bottom:none; }
+    .s-row:hover { background:rgba(56,189,248,0.03); }
+    .s-info { display:flex; align-items:center; gap:12px; }
+    .s-av { width:38px; height:38px; border-radius:50%; border:1px solid var(--border-glass); }
+    .s-name { font-size:14px; font-weight:600; }
+    .s-dept { font-size:11px; color:var(--text-muted); }
+    .status-group { display:flex; gap:6px; }
+    .sb { padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid var(--border-glass); background:transparent; color:var(--text-muted); transition:var(--transition); }
+    .sb:hover { background:rgba(255,255,255,0.05); }
+    .sb.present.active { background:rgba(74,222,128,0.15); color:var(--neon-green); border-color:rgba(74,222,128,0.3); }
+    .sb.absent.active  { background:rgba(239,68,68,0.15); color:#f87171; border-color:rgba(239,68,68,0.3); }
+    .sb.late.active    { background:rgba(251,146,60,0.15); color:var(--neon-orange); border-color:rgba(251,146,60,0.3); }
+    @media(max-width:768px) { .sidebar { transform:translateX(-100%); } .main-content { margin-left:0; } .topbar,.content { padding-left:16px; padding-right:16px; } .status-group { gap:4px; } .sb { padding:5px 8px; font-size:11px; } }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="sidebar-wrap"></div>
+<div class="main-content">
+  <header class="topbar">
+    <div>
+      <h1 style="font-size:18px;font-weight:700;">Manual Override</h1>
+      <p style="font-size:12px;color:var(--text-muted);" id="date-lbl"></p>
+    </div>
+    <button class="btn-primary" onclick="markAllPresent()"><i data-lucide="check-square"></i> Mark All Present</button>
+  </header>
+  <div class="content">
+    <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;color:var(--text-muted);" id="marked-lbl">0 marked</span>
+      <input type="date" id="att-date" style="width:160px;" onchange="reloadForDate()">
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <span style="font-size:14px;font-weight:600;">All Students</span>
+        <button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="loadStudents()"><i data-lucide="refresh-cw"></i> Reload</button>
+      </div>
+      <div id="student-list"><div style="padding:20px;text-align:center;"><div class="spinner" style="margin:auto;"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+requireAuth('teacher', '../');
+let students = [], markedCount = 0;
+const today = new Date().toISOString().split('T')[0];
+
+document.addEventListener('authReady', () => {
+  document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('manual.html');
+  document.getElementById('att-date').value = today;
+  document.getElementById('date-lbl').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  lucide.createIcons();
+  loadStudents();
+});
+
+async function loadStudents() {
+  const snap = await db.collection('students').orderBy('name').get();
+  students = [];
+  snap.forEach(d => students.push({ id: d.id, ...d.data() }));
+  markedCount = 0;
+  document.getElementById('marked-lbl').textContent = '0 marked';
+
+  const selectedDate = document.getElementById('att-date').value;
+  // Load existing records for selected date
+  const existing = {};
+  const attSnap = await db.collection('attendance').where('date','==',selectedDate).get();
+  attSnap.forEach(d => { const r = d.data(); existing[r.studentId] = r.status; });
+
+  const list = document.getElementById('student-list');
+  if (!students.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">No students registered.</div>'; return; }
+
+  list.innerHTML = students.map(s => {
+    const sid = s.uid || s.id;
+    const cur = existing[sid] || '';
+    // Use sid (resolved auth UID) consistently for both DOM IDs and handlers
+    const safeSid = sid.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `<div class="s-row" id="row-${safeSid}">
+      <div class="s-info">
+        <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1e3a5f&color=38bdf8&size=64" class="s-av">
+        <div><div class="s-name">${s.name}</div><div class="s-dept">${s.dept||'Engineering'}</div></div>
+      </div>
+      <div class="status-group" id="grp-${safeSid}">
+        <button class="sb present ${cur==='Present'?'active':''}" onclick="setStatus('${sid}','${s.name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}','Present',this)">Present</button>
+        <button class="sb absent  ${cur==='Absent' ?'active':''}" onclick="setStatus('${sid}','${s.name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}','Absent',this)">Absent</button>
+        <button class="sb late   ${cur==='Late'   ?'active':''}" onclick="setStatus('${sid}','${s.name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}','Late',this)">Late</button>
+      </div>
+    </div>`;
+  }).join('');
+  markedCount = Object.keys(existing).length;
+  document.getElementById('marked-lbl').textContent = `${markedCount} marked`;
+  lucide.createIcons();
+}
+
+async function setStatus(id, name, status, btn) {
+  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const grp = document.getElementById(`grp-${safeId}`);
+  if (grp) {
+    const wasMarked = !!grp.querySelector('.active');
+    Array.from(grp.children).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (!wasMarked) { markedCount++; document.getElementById('marked-lbl').textContent = `${markedCount} marked`; }
+  }
+
+  const selectedDate = document.getElementById('att-date').value;
+  const docId = `${selectedDate}_${id}`;
+  await db.collection('attendance').doc(docId).set({
+    studentId: id, name, date: selectedDate,
+    time: new Date().toLocaleTimeString('en-IN'),
+    status, method: 'Manual Override',
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  showToast(`${name} → ${status}`, 'success');
+}
+
+async function markAllPresent() {
+  if (!confirm(`Mark all ${students.length} students as Present?`)) return;
+  for (const s of students) {
+    const sid = s.uid || s.id;
+    const safeSid = sid.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const btn = document.querySelector(`#grp-${safeSid} .sb.present`);
+    if (btn && !btn.classList.contains('active')) {
+      await setStatus(sid, s.name, 'Present', btn);
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+  showToast(`All ${students.length} students marked Present!`, 'success');
+}
+
+function reloadForDate() { loadStudents(); }
+lucide.createIcons();
+</script>
+</body>
+</html>

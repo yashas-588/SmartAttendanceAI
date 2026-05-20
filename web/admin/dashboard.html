@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
+    .sidebar-logo { padding:0 20px; margin-bottom:36px; }
+    .sidebar-menu { flex:1; display:flex; flex-direction:column; gap:4px; padding:0 12px; }
+    .menu-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:10px; color:var(--text-secondary); text-decoration:none; font-size:13px; font-weight:500; transition:var(--transition); }
+    .menu-item:hover,.menu-item.active { background:rgba(56,189,248,0.1); color:var(--neon-blue); }
+    .menu-icon { width:20px; height:20px; flex-shrink:0; }
+    .sidebar-footer { padding:16px 12px 0; border-top:1px solid var(--border-glass); margin:0 0; }
+    .user-profile { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .user-info h4 { font-size:13px; font-weight:600; }
+    .user-info p { font-size:11px; color:var(--text-muted); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); display:flex; flex-direction:column; min-height:100vh; }
+    .topbar { height:64px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-glass); background:rgba(2,8,23,0.8); backdrop-filter:blur(20px); position:sticky; top:0; z-index:90; }
+    .content { padding:28px 32px; }
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:28px; }
+    .stat-card { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; padding:20px; display:flex; align-items:center; gap:16px; transition:var(--transition); }
+    .stat-card:hover { border-color:var(--border-neon); box-shadow:var(--shadow-neon); }
+    .stat-icon-wrap { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .stat-num { font-family:'Orbitron',sans-serif; font-size:28px; font-weight:700; }
+    .stat-lbl { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .panel { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; padding:20px; }
+    .panel-title { font-size:15px; font-weight:700; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+    .feed-item { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .feed-item:last-child { border-bottom:none; }
+    .feed-avatar { width:36px; height:36px; border-radius:8px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0; }
+    .feed-name { font-size:13px; font-weight:600; }
+    .feed-meta { font-size:11px; color:var(--text-muted); }
+    .feed-time { margin-left:auto; font-size:11px; color:var(--text-muted); }
+    /* mobile */
+    @media(max-width:768px) {
+      .sidebar { transform:translateX(-100%); transition:var(--transition); }
+      .sidebar.open { transform:translateX(0); }
+      .main-content { margin-left:0; }
+      .grid-2 { grid-template-columns:1fr; }
+      .topbar { padding:0 16px; }
+      .content { padding:16px; }
+    }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- SIDEBAR (injected by auth-guard renderAdminSidebar) -->
+<div id="sidebar-wrap"></div>
+
+<div class="main-content">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button id="mob-menu" style="display:none;background:none;border:none;cursor:pointer;color:var(--text-primary);" onclick="document.querySelector('.sidebar').classList.toggle('open')"><i data-lucide="menu"></i></button>
+      <h1 style="font-size:18px;font-weight:700;">Dashboard</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
+      <a href="live.html" class="btn-primary" style="padding:8px 18px;font-size:13px;"><i data-lucide="video"></i> Live Scan</a>
+    </div>
+  </header>
+
+  <div class="content">
+    <!-- STATS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon-wrap" style="background:rgba(56,189,248,0.1);"><i data-lucide="users" style="color:var(--neon-blue);width:24px;height:24px;"></i></div>
+        <div><div class="stat-num" id="total-students">--</div><div class="stat-lbl">Total Students</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap" style="background:rgba(74,222,128,0.1);"><i data-lucide="check-circle" style="color:var(--neon-green);width:24px;height:24px;"></i></div>
+        <div><div class="stat-num" id="present-today" style="color:var(--neon-green);">--</div><div class="stat-lbl">Present Today</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap" style="background:rgba(239,68,68,0.1);"><i data-lucide="trending-down" style="color:#f87171;width:24px;height:24px;"></i></div>
+        <div><div class="stat-num" id="defaulters" style="color:#f87171;">--</div><div class="stat-lbl">Defaulters (&lt;75%)</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap" style="background:rgba(167,139,250,0.1);"><i data-lucide="percent" style="color:var(--neon-purple);width:24px;height:24px;"></i></div>
+        <div><div class="stat-num" id="att-rate" style="color:var(--neon-purple);">--%</div><div class="stat-lbl">Today's Rate</div></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- TODAY'S FEED -->
+      <div class="panel">
+        <div class="panel-title"><i data-lucide="clock"></i> Today's Attendance</div>
+        <div id="today-feed"><div style="text-align:center;padding:20px;color:var(--text-muted);">Loading...</div></div>
+      </div>
+
+      <!-- SECURITY ALERTS -->
+      <div class="panel">
+        <div class="panel-title"><i data-lucide="shield-alert" style="color:#f87171;"></i> Security Alerts</div>
+        <div id="alerts-list"><div style="text-align:center;padding:20px;color:var(--text-muted);">Loading alerts...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  requireAuth('teacher', '../');
+
+  document.addEventListener('authReady', () => {
+    document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('dashboard.html');
+    lucide.createIcons();
+    loadDashboard();
+  });
+
+  setInterval(() => {
+    const el = document.getElementById('clock');
+    if (el) el.textContent = new Date().toLocaleTimeString();
+  }, 1000);
+
+  async function loadDashboard() {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Students count
+    const studSnap = await db.collection('students').get();
+    const total = studSnap.size;
+    document.getElementById('total-students').textContent = total;
+
+    // Today's attendance
+    const attSnap = await db.collection('attendance').where('date', '==', today).get();
+    let present = 0;
+    const feedRecs = [];
+    attSnap.forEach(d => {
+      const r = d.data();
+      if (r.status === 'Present') present++;
+      feedRecs.push(r);
+    });
+    
+    document.getElementById('present-today').textContent = present;
+    document.getElementById('att-rate').textContent = total ? Math.round((present/total)*100) + '%' : '--%';
+
+    // Today feed
+    const feedEl = document.getElementById('today-feed');
+    if (feedRecs.length === 0) {
+      feedEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">No attendance yet today</div>';
+    } else {
+      feedRecs.sort((a,b) => (b.time||'').localeCompare(a.time||''));
+      feedEl.innerHTML = feedRecs.slice(0,10).map(r => `
+        <div class="feed-item">
+          <div class="feed-avatar">${(r.name||'?')[0].toUpperCase()}</div>
+          <div><div class="feed-name">${r.name}</div><div class="feed-meta">${r.method||'AI Face'} · ${r.confidence?Math.round(r.confidence*100)+'%':''}</div></div>
+          <div class="feed-time">${r.time||''}<br>
+            <span class="badge ${r.status === 'Present' ? 'badge-green' : 'badge-red'}" style="font-size:10px;">${r.status}</span>
+          </div>
+        </div>`).join('');
+    }
+
+    // Security Alerts (Spoofs & Invalidations)
+    const alertsEl = document.getElementById('alerts-list');
+    let logsSnap = { forEach: () => {} };
+    try {
+      logsSnap = await db.collection('attendance_logs').where('date', '==', today).limit(20).get();
+    } catch(e) { console.warn('attendance_logs query failed (collection may not exist yet):', e.message); }
+    const alerts = [];
+    
+    // Add Invalidated regular attendance
+    feedRecs.filter(r => r.status === 'Invalidated').forEach(r => {
+      alerts.push({ name: r.name, reason: r.reason || 'Invalidated session', time: r.time, type: 'Invalidated' });
+    });
+    // Add Suspicious logs
+    logsSnap.forEach(d => {
+      const r = d.data();
+      alerts.push({ name: r.name, reason: r.reason, time: r.time, type: 'Suspicious' });
+    });
+    
+    alerts.sort((a,b) => (b.time||'').localeCompare(a.time||''));
+
+    if (alerts.length === 0) {
+      alertsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--neon-green);">No security alerts today</div>';
+    } else {
+      alertsEl.innerHTML = alerts.slice(0,10).map(a => `
+        <div class="feed-item" style="background:rgba(239,68,68,0.05);border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid rgba(239,68,68,0.2);">
+          <div class="feed-avatar" style="background:rgba(239,68,68,0.15);color:#f87171;">!</div>
+          <div><div class="feed-name" style="color:#f87171;">${a.name}</div><div class="feed-meta">${a.reason}</div></div>
+          <div class="feed-time">${a.time}</div>
+        </div>`).join('');
+    }
+
+    // Defaulters calc
+    let defCount = 0;
+    for (const doc of studSnap.docs) {
+      const s = doc.data();
+      // Use uid (auth-linked) or doc.id (admin-only) as the studentId
+      const sid = s.uid || doc.id;
+      const pSnap = await db.collection('attendance').where('studentId','==',sid).where('status','==','Present').get();
+      const tSnap = await db.collection('attendance').where('studentId','==',sid).get();
+      const pct = tSnap.size ? Math.round((pSnap.size/tSnap.size)*100) : 0;
+      if (pct < 75) defCount++;
+    }
+    document.getElementById('defaulters').textContent = defCount;
+
+    lucide.createIcons();
+  }
+</script>
+</body>
+</html>
