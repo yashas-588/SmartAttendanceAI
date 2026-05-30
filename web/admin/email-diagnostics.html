@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Diagnostics — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { display: flex; min-height: 100vh; }
+    .sidebar { width: var(--sidebar-width); background: rgba(2,8,23,0.97); border-right: 1px solid var(--border-glass); display: flex; flex-direction: column; padding: 24px 0; position: fixed; top: 0; bottom: 0; left: 0; z-index: 100; overflow-y: auto; }
+    .main-content { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; min-height: 100vh; }
+    .topbar { height: 64px; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-glass); background: rgba(2,8,23,0.8); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 90; }
+    .content { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+    
+    .panel { background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 16px; padding: 24px; }
+    .panel-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px; }
+    
+    .diag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .diag-card { background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-glass); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+    .diag-card-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+    .diag-card-val { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    
+    .grid-left-right { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px; }
+    
+    /* Interactive form */
+    .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+    .form-control { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; padding: 10px 14px; color: var(--text-primary); font-family: inherit; font-size: 14px; transition: var(--transition); }
+    .form-control:focus { border-color: var(--neon-blue); outline: none; box-shadow: 0 0 10px rgba(56, 189, 248, 0.15); }
+    
+    .console-box { background: #020617; border: 1px solid var(--border-glass); border-radius: 8px; padding: 14px; font-family: monospace; font-size: 12px; color: #38bdf8; max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+    .console-err { color: #f87171; }
+    .console-success { color: #4ade80; }
+    .console-warn { color: #fb923c; }
+
+    /* Accordion Guide */
+    .guide-section { display: flex; flex-direction: column; gap: 12px; }
+    .guide-card { border: 1px solid rgba(255,255,255,0.04); border-radius: 8px; background: rgba(15, 23, 42, 0.2); }
+    .guide-header { padding: 14px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .guide-body { padding: 14px; font-size: 12px; color: var(--text-secondary); line-height: 1.6; display: none; }
+    .guide-body code { background: rgba(56, 189, 248, 0.1); color: var(--neon-blue); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+    .guide-body ol { margin: 8px 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    
+    /* Table modifications */
+    .table-container { max-height: 400px; overflow-y: auto; }
+    table th { position: sticky; top: 0; background: #0f172a; z-index: 10; }
+    
+    @media(max-width: 992px) {
+      .grid-left-right { grid-template-columns: 1fr; }
+    }
+    
+    @media(max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: var(--transition); }
+      .sidebar.open { transform: translateX(0); }
+      .main-content { margin-left: 0; }
+      .topbar { padding: 0 16px; }
+      .content { padding: 16px; }
+    }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="sidebar-wrap"></div>
+
+<div class="main-content">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button id="mob-menu" style="display:none;background:none;border:none;cursor:pointer;color:var(--text-primary);" onclick="document.querySelector('.sidebar').classList.toggle('open')"><i data-lucide="menu"></i></button>
+      <h1 style="font-size:18px;font-weight:700;">Email Diagnostics</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
+      <button class="btn-primary" style="padding:8px 18px;font-size:13px;" onclick="runDiagnostics()"><i data-lucide="refresh-cw"></i> Run Check</button>
+    </div>
+  </header>
+
+  <div class="content">
+    
+    <!-- CONNECTIVITY PANEL -->
+    <div class="panel">
+      <div class="panel-title"><i data-lucide="activity"></i> System Environment & Connectivity</div>
+      <div class="diag-grid">
+        <!-- API KEY -->
+        <div class="diag-card" id="card-key">
+          <div class="diag-card-title">Resend API Key</div>
+          <div class="diag-card-val" id="val-key">Checking...</div>
+          <div style="font-size:11px;color:var(--text-muted);" id="desc-key">Verifying key signature...</div>
+        </div>
+        <!-- SENDER DOMAIN -->
+        <div class="diag-card" id="card-sender">
+          <div class="diag-card-title">Sender Address</div>
+          <div class="diag-card-val" id="val-sender">Checking...</div>
+          <div style="font-size:11px;color:var(--text-muted);" id="desc-sender">Verifying DNS status...</div>
+        </div>
+        <!-- CONNECTIVITY -->
+        <div class="diag-card" id="card-conn">
+          <div class="diag-card-title">Resend Connection</div>
+          <div class="diag-card-val" id="val-conn">Checking...</div>
+          <div style="font-size:11px;color:var(--text-muted);" id="desc-conn">Pinging api.resend.com...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="grid-left-right">
+      
+      <!-- TEST PANEL -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:16px;">
+        <div class="panel-title"><i data-lucide="send"></i> Trigger Real Email Delivery Test</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 4px;">
+          This panel sends a live, un-simulated transaction request directly through the Resend API to verify your configurations.
+        </p>
+        
+        <div class="form-group">
+          <label for="test-recipient">Recipient Email Address</label>
+          <input type="email" id="test-recipient" class="form-control" placeholder="recipient@example.com">
+        </div>
+        
+        <button class="btn-primary" id="btn-test" style="width:100%;justify-content:center;padding:12px;" onclick="sendTestEmail()">
+          <i data-lucide="mail"></i> Dispatch Test Email
+        </button>
+        
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">Live Transaction Log Stream:</div>
+          <div class="console-box" id="console-stream">Console ready. Click 'Dispatch Test Email' to log transmission details...</div>
+        </div>
+      </div>
+
+      <!-- DEV GUIDE -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:16px;">
+        <div class="panel-title"><i data-lucide="book-open"></i> Domain & Key Setup Guide</div>
+        <div class="guide-section">
+          <!-- STEP 1 -->
+          <div class="guide-card">
+            <div class="guide-header" onclick="toggleGuide(this)">1. How to get a real Resend API Key <i data-lucide="chevron-down"></i></div>
+            <div class="guide-body">
+              To send emails successfully, you need a valid API Key from Resend:
+              <ol>
+                <li>Register a free account at <a href="https://resend.com" target="_blank" style="color:var(--neon-blue);">resend.com</a>.</li>
+                <li>From the sidebar dashboard, go to <b>API Keys</b>.</li>
+                <li>Click <b>Create API Key</b>. Give it Full Access permissions.</li>
+                <li>Copy the key (starts with <code>re_</code>).</li>
+                <li>Paste this key into your root <code>.env</code> file:
+                  <pre style="background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:6px;font-size:10px;">RESEND_API_KEY=re_yourRealKeyHere</pre>
+                </li>
+              </ol>
+            </div>
+          </div>
+          <!-- STEP 2 -->
+          <div class="guide-card">
+            <div class="guide-header" onclick="toggleGuide(this)">2. Sandbox Mode vs Production Domain <i data-lucide="chevron-down"></i></div>
+            <div class="guide-body">
+              By default, all new Resend accounts start in <b>Sandbox Mode</b>:
+              <ol>
+                <li>Your default sender email is restricted to <code>onboarding@resend.dev</code>.</li>
+                <li><b>Sandbox Restriction:</b> You can ONLY send emails to the single email address used to sign up for your Resend account.</li>
+                <li>Any emails dispatched to parents, students, or other addresses will be rejected with an API error.</li>
+                <li>To test locally without domain setups, ensure your test students and parent email addresses in <b>Students</b> matches your own Resend registration address.</li>
+              </ol>
+            </div>
+          </div>
+          <!-- STEP 3 -->
+          <div class="guide-card">
+            <div class="guide-header" onclick="toggleGuide(this)">3. How to verify your custom domain <i data-lucide="chevron-down"></i></div>
+            <div class="guide-body">
+              To send parent/student notifications to any email address without restrictions:
+              <ol>
+                <li>In your Resend dashboard, go to <b>Domains</b>.</li>
+                <li>Click <b>Add Domain</b> (e.g. <code>attendance.yourschool.edu</code>).</li>
+                <li>Add the displayed DKIM, SPF, and MX records in your DNS management provider (GoDaddy, Cloudflare, Namecheap, etc.).</li>
+                <li>Once status turns to <b>Verified</b>, update your root <code>.env</code> file:
+                  <pre style="background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:6px;font-size:10px;">EMAIL_FROM=attendance@yourschool.edu</pre>
+                </li>
+                <li>Restart your local server to load changes!</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+
+    <!-- LOGS PANEL -->
+    <div class="panel">
+      <div class="panel-title" style="justify-content:space-between;">
+        <span style="display:flex;align-items:center;gap:10px;"><i data-lucide="list"></i> Firestore Email Audit Trail</span>
+        <button class="btn-primary" style="padding:6px 14px;font-size:12px;" onclick="loadLogs()"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh Trails</button>
+      </div>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:12px;">Recipient</th>
+              <th style="text-align:left;padding:12px;">Email Type</th>
+              <th style="text-align:left;padding:12px;">Status</th>
+              <th style="text-align:left;padding:12px;">HTTP Code / Ref</th>
+              <th style="text-align:left;padding:12px;">Latency</th>
+              <th style="text-align:left;padding:12px;">Date & Time</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            <tr>
+              <td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">Loading email audit trails...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  requireAuth('teacher', '../');
+
+  document.addEventListener('authReady', () => {
+    document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('email-diagnostics.html');
+    lucide.createIcons();
+    runDiagnostics();
+    loadLogs();
+  });
+
+  setInterval(() => {
+    const el = document.getElementById('clock');
+    if (el) el.textContent = new Date().toLocaleTimeString();
+  }, 1000);
+
+  function toggleGuide(headerEl) {
+    const body = headerEl.nextElementSibling;
+    const isVisible = body.style.display === 'block';
+    
+    // Collapse all
+    document.querySelectorAll('.guide-body').forEach(b => b.style.display = 'none');
+    document.querySelectorAll('.guide-header i').forEach(i => i.style.transform = 'rotate(0deg)');
+    
+    if (!isVisible) {
+      body.style.display = 'block';
+      headerEl.querySelector('i').style.transform = 'rotate(180deg)';
+    }
+    lucide.createIcons();
+  }
+
+  // 1. GET DIAGNOSTIC STATUS
+  async function runDiagnostics() {
+    try {
+      const res = await fetch(getApiUrl('/api/email-test'));
+      const d = await res.json();
+      
+      // Update API Key Card
+      const cardKey = document.getElementById('card-key');
+      const valKey = document.getElementById('val-key');
+      const descKey = document.getElementById('desc-key');
+      
+      if (d.api_key_status === 'configured') {
+        valKey.innerHTML = '<span class="badge badge-green">Configured</span>';
+        descKey.innerHTML = 'Valid key prefix detected (<code>re_...</code>). READY.';
+      } else if (d.api_key_status === 'placeholder') {
+        valKey.innerHTML = '<span class="badge badge-orange">Placeholder Active</span>';
+        descKey.innerHTML = 'Key set to REPLACE placeholder in <code>.env</code>. <span style="color:#ef4444;font-weight:700;">DELIVERIES WILL FAIL.</span>';
+      } else {
+        valKey.innerHTML = '<span class="badge badge-red">Missing / Invalid</span>';
+        descKey.innerHTML = 'No key loaded. Check your root <code>.env</code> file settings.';
+      }
+      
+      // Update Sender Card
+      const cardSender = document.getElementById('card-sender');
+      const valSender = document.getElementById('val-sender');
+      const descSender = document.getElementById('desc-sender');
+      
+      valSender.textContent = d.sender_email || 'None';
+      if (d.sandbox_restricted) {
+        valSender.innerHTML += ' <span class="badge badge-orange">Sandbox</span>';
+        descSender.innerHTML = 'Using <code>onboarding@resend.dev</code>. Restricted to owner inbox only.';
+      } else {
+        valSender.innerHTML += ' <span class="badge badge-green">Production Domain</span>';
+        descSender.innerHTML = 'Verified custom domain detected. Output completely unrestricted.';
+      }
+      
+      // Update Connectivity Card
+      const cardConn = document.getElementById('card-conn');
+      const valConn = document.getElementById('val-conn');
+      const descConn = document.getElementById('desc-conn');
+      
+      const conn = d.resend_connectivity;
+      if (conn.connected) {
+        if (conn.auth_valid) {
+          valConn.innerHTML = `<span class="badge badge-green">Connected</span> <span style="font-size:12px;color:var(--text-muted);">${conn.latency_ms}ms</span>`;
+          descConn.textContent = conn.message || 'Resend APIs contacted successfully.';
+        } else {
+          valConn.innerHTML = `<span class="badge badge-orange">Unauthorized</span> <span style="font-size:12px;color:var(--text-muted);">${conn.latency_ms}ms</span>`;
+          descConn.innerHTML = `<span style="color:#ef4444;">Auth verification failed (HTTP ${conn.status_code}): API key invalid.</span>`;
+        }
+      } else {
+        valConn.innerHTML = '<span class="badge badge-red">Offline / Blocked</span>';
+        descConn.textContent = conn.message || 'DNS resolution failure. Resend endpoints unreachable.';
+      }
+      
+    } catch (e) {
+      showToast('Diagnostics request failed: backend offline.', 'error');
+      console.error(e);
+    }
+  }
+
+  // 2. DISPATCH TEST EMAIL
+  async function sendTestEmail() {
+    const recEl = document.getElementById('test-recipient');
+    const email = recEl.value.trim();
+    if (!email) {
+      showToast('Please enter a recipient email address.', 'orange');
+      return;
+    }
+    
+    const btn = document.getElementById('btn-test');
+    const consoleEl = document.getElementById('console-stream');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="spinner"></i> Dispatching...';
+    lucide.createIcons();
+    
+    consoleEl.className = 'console-box';
+    consoleEl.textContent = `[SYSTEM] [${new Date().toLocaleTimeString()}] Triggering un-simulated post-email request...\n`;
+    consoleEl.textContent += `[SYSTEM] Destination Recipient: "${email}"\n`;
+    consoleEl.textContent += `[SYSTEM] Connecting to backend test channel...\n`;
+    
+    try {
+      const res = await fetch(getApiUrl('/api/email-test'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: email })
+      });
+      
+      const latency = res.headers.get('X-Response-Time') || 'unknown';
+      const data = await res.json();
+      
+      consoleEl.textContent += `[HTTP STATUS] Code: ${res.status_code || res.status} (Latency: ${data.latency_ms || latency}ms)\n`;
+      consoleEl.textContent += `[PROVIDER RESPONSE] Payload:\n${JSON.stringify(data.response || data, null, 2)}\n\n`;
+      
+      if (res.ok && data.success) {
+        consoleEl.className = 'console-box console-success';
+        consoleEl.textContent += `[DELIVERY SUCCESS] ✓ Email accepted by Resend queue.\n`;
+        consoleEl.textContent += `[MESSAGE ID] ${data.response.id}\n`;
+        
+        if (data.sandbox_warning) {
+          consoleEl.textContent += `\n⚠️ SANDBOX NOTICE: Standard Resend sandbox restrictions apply. If the recipient does not receive the email, verify that "${email}" is the exact address associated with your Resend account.`;
+        }
+        
+        showToast('Test email sent successfully!', 'success');
+      } else {
+        consoleEl.className = 'console-box console-err';
+        consoleEl.textContent += `[DELIVERY FAILURE] ❌ Resend API rejected the request.\n`;
+        
+        // Custom UI help based on exact provider response
+        const errName = data.response?.name || '';
+        const errMsg = data.response?.message || data.message || '';
+        
+        if (res.status === 401 || errName === 'validation_error' || errMsg.includes('invalid') || errMsg.includes('API key')) {
+          consoleEl.textContent += `[DIAGNOSIS] Invalid API Key. Please replace RESEND_API_KEY placeholder with a real key in .env.`;
+        } else if (res.status === 403 || errMsg.includes('domain') || errMsg.includes('restricted') || errMsg.includes('sandbox')) {
+          consoleEl.textContent += `[DIAGNOSIS] Sandbox Restriction block. Verify you are sending ONLY to your Resend account owner's address OR verify your sender domain in the Resend console.`;
+        } else {
+          consoleEl.textContent += `[DIAGNOSIS] Reject Reason: ${errMsg}`;
+        }
+        
+        showToast('Email delivery failed. Inspect the live stream console for details.', 'error', 7000);
+      }
+      
+    } catch (e) {
+      consoleEl.className = 'console-box console-err';
+      consoleEl.textContent += `[CONNECTION ERROR] Network timed out or backend API unreachable: ${e.message}\n`;
+      showToast('Failed to contact Flask backend.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="mail"></i> Dispatch Test Email';
+      lucide.createIcons();
+      runDiagnostics();
+      loadLogs();
+    }
+  }
+
+  // 3. LOAD FIRESTORE AUDIT LOGS
+  async function loadLogs() {
+    const tbody = document.getElementById('logs-tbody');
+    try {
+      const snap = await db.collection('email_logs')
+                           .orderBy('sentAt', 'desc')
+                           .limit(40)
+                           .get();
+      
+      if (snap.empty) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">No email audit trails recorded in database</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = '';
+      snap.forEach(doc => {
+        const r = doc.data();
+        const sentAt = r.sentAt ? r.sentAt.toDate().toLocaleString() : '--';
+        const badge = r.status === 'sent' ? 'badge-green' : 'badge-red';
+        const typeBadge = r.type === 'absence_notification' ? 'badge-orange' : (r.type === 'student_welcome' ? 'badge-blue' : 'badge-purple');
+        
+        tbody.innerHTML += `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+            <td style="padding:12px;font-weight:600;">${r.recipient || '--'}</td>
+            <td style="padding:12px;"><span class="badge ${typeBadge}">${r.type || 'System'}</span></td>
+            <td style="padding:12px;"><span class="badge ${badge}">${r.status === 'sent' ? 'Sent ✓' : 'Failed ❌'}</span></td>
+            <td style="padding:12px;font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.ref || ''}">${r.ref || '--'}</td>
+            <td style="padding:12px;color:var(--text-muted);">${r.latency ? r.latency + 'ms' : '--'}</td>
+            <td style="padding:12px;font-size:12px;color:var(--text-secondary);">${sentAt}</td>
+          </tr>
+        `;
+      });
+      
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#f87171;">Failed to load logs from Firestore: ${e.message}</td></tr>`;
+    }
+  }
+</script>
+</body>
+</html>

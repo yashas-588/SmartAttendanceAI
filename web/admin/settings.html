@@ -59,6 +59,34 @@
   </header>
   <div class="content">
 
+    <!-- STORAGE & SYSTEM DASHBOARD (Feature D) -->
+    <div class="sect">
+      <div class="sect-title"><i data-lucide="database" style="color:var(--neon-green);width:18px;height:18px;"></i> ERP Storage & Dataset Dashboard</div>
+      <div class="sect-desc">Live system metrics and storage consumption.</div>
+      <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; margin-top:16px;">
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
+          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-blue);" id="db-total-students">0</div>
+          <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">TOTAL STUDENTS</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
+          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-green);" id="db-registered-faces">0</div>
+          <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">TRAINED FACES</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
+          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-purple);" id="db-doc-storage">0.0 KB</div>
+          <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">DOC STORAGE</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
+          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-pink);" id="db-avg-profile-size">0.0 KB</div>
+          <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">AVG PROFILE SIZE</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
+          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-orange);" id="db-total-storage">0.0 KB</div>
+          <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">TOTAL DATASET</div>
+        </div>
+      </div>
+    </div>
+
     <!-- CLASSROOM LOCATION -->
     <div class="sect">
       <div class="sect-title"><i data-lucide="map-pin" style="color:var(--neon-blue);width:18px;height:18px;"></i> Classroom Location</div>
@@ -137,6 +165,39 @@ document.addEventListener('authReady', async () => {
 });
 
 async function loadSettings() {
+  // Load system dashboard stats
+  try {
+    const stdSnap = await db.collection('students').get();
+    let totalStudents = 0;
+    let registeredFaces = 0;
+    let docStorageBytes = 0;
+
+    stdSnap.forEach(doc => {
+      totalStudents++;
+      const s = doc.data();
+      const hasDesc = s.descriptors && (typeof s.descriptors === 'object') && Object.keys(s.descriptors).length > 0;
+      if (hasDesc) registeredFaces++;
+      
+      if (s.documents && Array.isArray(s.documents)) {
+        s.documents.forEach(d => {
+          docStorageBytes += d.size || 0;
+        });
+      }
+    });
+
+    const faceStorageBytes = registeredFaces * 2560; // 5 * 128 * 4 bytes
+    const totalStorageBytes = docStorageBytes + faceStorageBytes;
+    const avgProfileBytes = totalStudents > 0 ? (totalStorageBytes / totalStudents) : 0;
+
+    document.getElementById('db-total-students').textContent = totalStudents;
+    document.getElementById('db-registered-faces').textContent = registeredFaces;
+    document.getElementById('db-doc-storage').textContent = formatBytes(docStorageBytes);
+    document.getElementById('db-avg-profile-size').textContent = formatBytes(avgProfileBytes);
+    document.getElementById('db-total-storage').textContent = formatBytes(totalStorageBytes);
+  } catch (e) {
+    console.warn('Dashboard stats load error:', e);
+  }
+
   const snap = await db.collection('settings').doc('classroom').get();
   if (!snap.exists) return;
   const d = snap.data();
@@ -153,6 +214,14 @@ async function loadSettings() {
   if (d.oncePerDay !== undefined) document.getElementById('once-per-day').checked = d.oncePerDay;
   if (d.windowStart) document.getElementById('att-start').value = d.windowStart;
   if (d.windowEnd) document.getElementById('att-end').value = d.windowEnd;
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0.0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 function detectLocation() {

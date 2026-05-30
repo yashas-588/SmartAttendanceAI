@@ -89,13 +89,14 @@
   </style>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/liveness.js"></script>
-  <script src="../js/face-engine.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/liveness.js?v=2.1"></script>
+  <script src="../js/face-engine.js?v=2.1"></script>
+  <script src="../js/auth-guard.js?v=2.1"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -214,9 +215,49 @@
 <script>
 requireAuth('student', '../');
 
+// Face recognition engine initialization
+
 const faceEng = new FaceEngine();
 const livEng  = new LivenessEngine();
-let studentData = null, isRunning = false, challengeTimerIv = null;
+let studentData = null, isRunning = false, challengeTimerIv = null, cooldownTimerIv = null;
+let currentSessionId = null;  // Set after Phase 0 session check
+
+async function getDeviceFingerprint() {
+  const components = [
+    navigator.userAgent,
+    `${window.screen.width}x${window.screen.height}`,
+    navigator.language,
+    navigator.hardwareConcurrency || 'unknown',
+    navigator.platform || 'unknown',
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  ];
+  const msgBuffer = new TextEncoder().encode(components.join('|'));
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function startCooldownTimer(seconds) {
+  const scanBtn = document.getElementById('scan-btn');
+  if (cooldownTimerIv) clearInterval(cooldownTimerIv);
+  
+  scanBtn.disabled = true;
+  let rem = seconds;
+  const updateUI = () => {
+    if (rem <= 0) {
+      clearInterval(cooldownTimerIv);
+      scanBtn.disabled = false;
+      setStatus('idle', 'Ready to Mark Attendance', 'Tap the button below to begin verification');
+    } else {
+      const m = Math.floor(rem / 60);
+      const s = rem % 60;
+      setStatus('warn', 'Verification Cooldown Active', `Please wait ${m}m ${s}s before trying again.`);
+    }
+    rem--;
+  };
+  updateUI();
+  cooldownTimerIv = setInterval(updateUI, 1000);
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('authReady', async e => {
@@ -224,6 +265,35 @@ document.addEventListener('authReady', async e => {
   document.getElementById('nav-avatar').textContent = (u.name || u.email || '?')[0].toUpperCase();
   document.getElementById('greeting').textContent = `Hello, ${u.name || 'Student'}`;
   document.getElementById('sub-date').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  // Self-healing activation status trigger & link external UID
+  try {
+    let actSnap = await db.collection('students').where('uid', '==', u.uid).limit(1).get();
+    if (actSnap.empty && u.email) {
+      const emailSnap = await db.collection('students').where('email', '==', u.email.toLowerCase()).limit(1).get();
+      if (!emailSnap.empty) {
+        const doc = emailSnap.docs[0];
+        const data = doc.data();
+        const hasFace = !!data.descriptors;
+        const targetStatus = hasFace ? 'Active' : 'Face Setup Needed';
+        await doc.ref.update({
+          uid: u.uid,
+          accountStatus: targetStatus
+        });
+        console.log(`Student record linked to UID: ${u.uid} with status: ${targetStatus}`);
+        actSnap = await db.collection('students').where('uid', '==', u.uid).limit(1).get();
+      }
+    }
+    actSnap.forEach(async doc => {
+      const data = doc.data();
+      const hasFace = !!data.descriptors;
+      const expectedStatus = hasFace ? 'Active' : 'Face Setup Needed';
+      if (data.accountStatus !== expectedStatus) {
+        await doc.ref.update({ accountStatus: expectedStatus });
+        console.log(`Student accountStatus self-healed to ${expectedStatus}.`);
+      }
+    });
+  } catch(err) { console.warn('Status sync notice:', err.message); }
 
   setStatus('loading', 'Loading AI engine...', 'Initializing camera and models in parallel');
   try {
@@ -239,6 +309,17 @@ document.addEventListener('authReady', async e => {
       return;
     }
     studentData = { uid: u.uid, name: u.name };
+    // Apply teacher-configured face threshold from settings
+    try {
+      const cfgSnap = await db.collection('settings').doc('classroom').get();
+      if (cfgSnap.exists) {
+        const cfg = cfgSnap.data();
+        if (cfg.faceThreshold && cfg.faceThreshold > 0) {
+          window._customFaceThreshold = cfg.faceThreshold;
+          console.log(`Face threshold loaded from settings: ${cfg.faceThreshold}`);
+        }
+      }
+    } catch(e) { /* settings may not exist yet */ }
     setStatus('idle', 'Ready to Mark Attendance', 'Tap the button below to begin verification');
   } catch(e) {
     setStatus('error', 'Failed to Load', e.message);
@@ -247,22 +328,39 @@ document.addEventListener('authReady', async e => {
 
 async function startCamera() {
   const video = document.getElementById('cam-video');
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode:'user', width:{ideal:720,max:1280}, height:{ideal:480,max:720}, frameRate:{ideal:30,max:60} },
-      audio: false
-    });
-    video.srcObject = stream;
-    stream.getVideoTracks()[0].onended = () => { setTimeout(startCamera, 1000); };
-    await new Promise(resolve => {
-      video.onloadedmetadata = () => { video.play(); };
-      video.onplaying = resolve;
-      setTimeout(resolve, 3000);
-    });
-  } catch(e) {
-    setStatus('error', 'Camera Error', 'Please allow camera permissions and reload the page.');
-    showToast('Camera error: ' + e.message, 'error');
+  const constraintsList = [
+    { video: { facingMode:'user', width:{ideal:720}, height:{ideal:480} }, audio: false },
+    { video: { facingMode:'user' }, audio: false },
+    { video: true, audio: false }
+  ];
+
+  let lastError = null;
+  for (const constraints of constraintsList) {
+    try {
+      console.log('Attempting camera access with constraints:', constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+      if (stream.getVideoTracks().length > 0) {
+        stream.getVideoTracks()[0].onended = () => {
+          console.warn('Camera track ended. Restarting...');
+          setTimeout(startCamera, 1000);
+        };
+      }
+      await new Promise(resolve => {
+        video.onloadedmetadata = () => { video.play().catch(e => console.warn('video.play failed:', e)); };
+        video.onplaying = resolve;
+        setTimeout(resolve, 2000);
+      });
+      console.log('Camera initialized successfully');
+      return;
+    } catch(e) {
+      console.warn('Camera access failed with constraints:', constraints, e);
+      lastError = e;
+    }
   }
+
+  setStatus('error', 'Camera Error', 'Please allow camera permissions and reload the page.');
+  showToast('Camera error: ' + (lastError ? lastError.message : 'Unknown error'), 'error');
 }
 
 // ── RETRY (no full reload) ───────────────────────────────────────────────
@@ -308,34 +406,99 @@ async function startAttendance() {
     });
   };
 
-  // ── PHASE 1: LIVENESS (with challenge overlay & guidance) ─────────────
-  setStatus('scanning', 'Verifying liveness...', 'Multi-layer AI verification active');
-
-  showChallenge('👁️', 'Look at the camera', 'We\'ll guide you through each step');
-  startChallengeTimer(10);
-
-  const livResult = await livEng.runFullCheck(video, (msg, type) => {
-    if (type === 'challenge') {
-      // Parse directional guidance
-      if (msg.includes('←') || msg.includes('LEFT')) {
-        showChallenge('←', 'Turn head LEFT', 'Just a slight natural turn');
-      } else if (msg.includes('→') || msg.includes('RIGHT')) {
-        showChallenge('→', 'Turn head RIGHT', 'Just a slight natural turn');
-      } else if (msg.includes('BLINK')) {
-        showChallenge('👁️', 'BLINK NOW', 'Close and open your eyes naturally');
-      } else if (msg.includes('movement detected')) {
-        showChallenge('✓', msg, 'Great!');
-      } else {
-        updateChallengeText(msg);
+  // ── PHASE 0: SESSION CHECK ────────────────────────────────────────────
+  setStatus('loading', 'Checking for active session...', 'Your teacher must start a session first');
+  try {
+    const snap = await db.collection('sessions')
+      .where('is_active', '==', true)
+      .orderBy('created_at', 'desc')
+      .limit(1)
+      .get();
+    
+    if (snap.empty) {
+      setStatus('warn', 'No Active Session', 'Ask your teacher to start an attendance session.');
+      setStep(1, 'fail');
+      done(); return;
+    }
+    
+    const sessDoc = snap.docs[0];
+    const sessData = sessDoc.data();
+    
+    // Lazy expiry check
+    let expired = false;
+    if (sessData.expires_at) {
+      const expDate = sessData.expires_at.toDate();
+      if (new Date() > expDate) {
+        expired = true;
       }
-    } else if (type === 'warning') {
-      setStatus('warn', msg, 'Adjust and we\'ll retry automatically');
+    }
+    
+    if (expired) {
+      setStatus('warn', 'No Active Session', 'The session has expired.');
+      setStep(1, 'fail');
+      done(); return;
+    }
+    
+    currentSessionId = sessDoc.id;
+    const expDate = sessData.expires_at.toDate();
+    const remMin = Math.ceil((expDate - new Date()) / 60000);
+    setStatus('scanning', `Session active — ${remMin} min remaining`, `${sessData.subject || ''} · ${sessData.class_id || ''}`);
+  } catch(e) {
+    setStatus('warn', 'Error loading session', e.message);
+    setStep(1, 'fail');
+    done(); return;
+  }
+
+  // ── PHASE 0.5: LIVENESS CHALLENGE GENERATION ───────────────────────────
+  setStatus('loading', 'Initializing liveness challenge...', 'Requesting sequence from server...');
+  let challengeSeq = null;
+  let challengeToken = null;
+  let challengeStartTime = null;
+  let fingerprint = null;
+  
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    fingerprint = await getDeviceFingerprint();
+    const chalRes = await fetch(getApiUrl('/api/request-challenge'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        device_fingerprint: fingerprint
+      })
+    });
+    const chalData = await chalRes.json();
+    if (!chalRes.ok || !chalData.success) {
+      if (chalData.cooldown_remaining > 0) {
+        startCooldownTimer(chalData.cooldown_remaining);
+        done();
+        return;
+      }
+      throw new Error(chalData.message || 'Liveness challenge request failed.');
+    }
+    challengeSeq = chalData.challenge_sequence;
+    challengeToken = chalData.challenge_token;
+    challengeStartTime = Date.now();
+  } catch (e) {
+    setStatus('warn', 'Challenge Initialization Failed', e.message);
+    setStep(1, 'fail');
+    done(true);
+    return;
+  }
+
+  // ── PHASE 1: LIVENESS (with challenge overlay & guidance) ─────────────
+  setStatus('scanning', 'Verifying liveness...', 'Active challenge-response verification active');
+
+  const livResult = await livEng.runFullCheck(video, challengeSeq, (msg, type) => {
+    if (type === 'warning') {
+      setStatus('warn', msg, 'Adjust and try again');
     } else {
       setStatus('scanning', msg, '');
     }
-  }, 10000);
-
-  hideChallenge();
+  });
 
   // Update confidence bars with scores
   if (livResult.details.scores) {
@@ -347,6 +510,31 @@ async function startAttendance() {
     setStatus('warn', 'Verification Incomplete', livResult.details.reason);
     setStep(1, 'fail');
     await logAttempt('Retry', `Liveness score: ${livResult.details.weighted_score}%`);
+    
+    // Report attempt failure to server to update cooldown counters
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const reportRes = await fetch(getApiUrl('/api/verify-liveness'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          session_id: currentSessionId,
+          challenge_token: challengeToken,
+          device_fingerprint: fingerprint,
+          completed_challenges: livResult.completed_challenges || [],
+          attempt_duration: (Date.now() - challengeStartTime) / 1000,
+          scores: livResult.details.scores || {}
+        })
+      });
+      const reportData = await reportRes.json();
+      if (!reportRes.ok && reportData.cooldown_remaining > 0) {
+        startCooldownTimer(reportData.cooldown_remaining);
+      }
+    } catch(err) {}
+    
     done(true); return; // true = show retry
   }
   setStep(1, 'pass'); setStep(2);
@@ -359,7 +547,7 @@ async function startAttendance() {
     done(true); return;
   }
 
-  const match = faceEng.findBestMatch(desc);
+  const match = faceEng.findBestMatch(desc, window._customFaceThreshold || undefined);
   setPill('pill-face', match.matched ? 'pass' : 'fail');
 
   if (!match.matched) {
@@ -386,32 +574,89 @@ async function startAttendance() {
   }
   setStep(3, 'pass'); setStep(4);
 
-  // ── PHASE 4: MARK ATTENDANCE ───────────────────────────────────────────
-  setStatus('scanning', 'Saving attendance...', 'Writing to Firebase');
-  const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
-  const timeStr = now.toLocaleTimeString('en-IN');
-  const docId = `${dateStr}_${studentData.uid}`;
+  // ── PHASE 4: MARK ATTENDANCE (SECURE BACKEND API) ──
+  setStatus('scanning', 'Requesting verification token...', 'Validating anti-spoofing signature...');
 
-  const existing = await db.collection('attendance').doc(docId).get();
-  if (existing.exists && existing.data().status === 'Present') {
-    setStatus('success', 'Already Marked Today', `Marked at ${existing.data().time}`);
-    setStep(4, 'pass'); done(); return;
+  let livenessToken = null;
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const liveRes = await fetch(getApiUrl('/api/verify-liveness'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        challenge_token: challengeToken,
+        device_fingerprint: fingerprint,
+        completed_challenges: livResult.completed_challenges,
+        attempt_duration: (Date.now() - challengeStartTime) / 1000,
+        scores: livResult.details.scores
+      })
+    });
+    const liveData = await liveRes.json();
+    if (!liveRes.ok || !liveData.success) {
+      if (liveData.cooldown_remaining > 0) {
+        startCooldownTimer(liveData.cooldown_remaining);
+        throw new Error(liveData.message || 'Too many failed attempts. Cooldown triggered.');
+      }
+      throw new Error(liveData.message || 'Liveness verification failed on backend');
+    }
+    livenessToken = liveData.token;
+  } catch (e) {
+    setStatus('warn', 'Anti-Spoof Verification Failed', e.message || 'Network error');
+    setStep(4, 'fail');
+    await logAttempt('Failed', e.message || 'Liveness token rejection');
+    done(true);
+    return;
   }
 
-  await db.collection('attendance').doc(docId).set({
-    studentId: studentData.uid, name: match.name, date: dateStr, time: timeStr,
-    status: 'Present', method: 'AI Face + Location', confidence: match.confidence,
-    livenessScore: livResult.details.weighted_score,
-    location: locResult.userLat ? { lat: locResult.userLat, lon: locResult.userLon } : null,
-    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  setStatus('scanning', 'Marking attendance...', 'Securing session via backend verification');
 
-  setStep(4, 'pass');
-  setStatus('success', 'Attendance Marked!', `${match.name} · ${timeStr}`);
-  document.getElementById('success-card').style.display = 'block';
-  document.getElementById('success-detail').textContent = `${dateStr} · ${timeStr} · Face: ${(match.confidence*100).toFixed(0)}% · Liveness: ${livResult.details.weighted_score}%`;
-  done();
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const payload = {
+      session_id: currentSessionId,
+      matched_name: studentData.name,
+      confidence: match.confidence,
+      lat: locResult.userLat,
+      lon: locResult.userLon,
+      liveness_token: livenessToken,
+      liveness_score: livResult.details.weighted_score || 0,
+      gps_accuracy: locResult.accuracy || null
+    };
+
+    const res = await fetch(getApiUrl('/api/mark-attendance'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Server rejected attendance');
+    }
+
+    // Success!
+    setStep(4, 'pass');
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-IN');
+    setStatus('success', 'Attendance Marked!', `${studentData.name} · ${timeStr}`);
+    document.getElementById('success-card').style.display = 'block';
+    document.getElementById('success-detail').textContent =
+      `${now.toISOString().split('T')[0]} · ${timeStr} · Face: ${Math.round((match.confidence||0)*100)}% · Liveness: ${livResult.details.weighted_score}%`;
+    await logAttempt('Success', `Marked. Confidence: ${Math.round((match.confidence||0)*100)}%`, match.confidence || 0);
+    done();
+  } catch(e) {
+    setStatus('warn', 'Attendance Failed', e.message || 'Network error');
+    setStep(4, 'fail');
+    await logAttempt('Failed', e.message || 'Network error');
+    done(true);
+  }
 }
 
 function done(showRetry = false) {

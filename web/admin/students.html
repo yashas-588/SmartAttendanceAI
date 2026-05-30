@@ -23,29 +23,78 @@
     .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
     .search-bar { display:flex; align-items:center; background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:10px; padding:0 14px; width:280px; }
     .search-bar input { background:transparent; border:none; padding:10px 0 10px 10px; outline:none; width:100%; box-shadow:none; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(272px,1fr)); gap:16px; }
+
+    /* ── Student Card ── */
     .s-card { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; padding:20px; text-align:center; transition:var(--transition); position:relative; }
     .s-card:hover { border-color:var(--border-neon); transform:translateY(-3px); }
-    .s-avatar { width:64px; height:64px; border-radius:50%; margin:0 auto 12px; border:2px solid var(--border-glass); object-fit:cover; }
+    .s-card.state-ready { border-color:rgba(74,222,128,0.18); }
+    .s-avatar { width:64px; height:64px; border-radius:50%; margin:0 auto 10px; border:2px solid var(--border-glass); object-fit:cover; }
     .s-name { font-size:15px; font-weight:700; margin-bottom:2px; }
-    .s-uid { font-size:11px; color:var(--text-muted); font-family:monospace; margin-bottom:10px; }
-    .s-stats { display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.05); padding-top:12px; margin-bottom:12px; }
-    .s-sv { font-size:16px; font-weight:700; }
-    .s-sl { font-size:10px; color:var(--text-muted); }
-    .s-actions { display:flex; gap:6px; justify-content:center; }
+    .s-meta { font-size:11px; color:var(--text-muted); font-family:monospace; margin-bottom:10px; }
     .reg-tag { position:absolute; top:10px; right:10px; font-size:10px; padding:3px 8px; border-radius:20px; }
-    /* Modal */
-    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:1000; display:none; align-items:center; justify-content:center; }
+
+    /* ── Status Pills ── */
+    .status-bar { display:flex; gap:6px; align-items:center; justify-content:center; margin:8px 0 4px; flex-wrap:wrap; }
+    .s-pill { display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:600; padding:3px 8px; border-radius:20px; letter-spacing:0.2px; }
+    .pill-green { background:rgba(74,222,128,0.12); color:var(--neon-green); border:1px solid rgba(74,222,128,0.2); }
+    .pill-orange { background:rgba(251,146,60,0.12); color:var(--neon-orange); border:1px solid rgba(251,146,60,0.2); }
+    .pill-purple { background:rgba(167,139,250,0.12); color:var(--neon-purple); border:1px solid rgba(167,139,250,0.2); }
+    .pill-blue { background:rgba(56,189,248,0.12); color:var(--neon-blue); border:1px solid rgba(56,189,248,0.2); }
+
+    /* ── Eligibility Chip ── */
+    .eligibility-chip { display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:4px 12px 4px 9px; border-radius:6px; margin:8px auto 10px; width:fit-content; border-left:3px solid transparent; letter-spacing:0.1px; }
+    .chip-ready      { background:rgba(74,222,128,0.07);  color:#4ade80; border-left-color:#4ade80; }
+    .chip-nologin    { background:rgba(167,139,250,0.07); color:#a78bfa; border-left-color:#a78bfa; }
+    .chip-noface     { background:rgba(251,146,60,0.07);  color:#fb923c; border-left-color:#fb923c; }
+    .chip-emailsent  { background:rgba(56,189,248,0.07);  color:#38bdf8; border-left-color:#38bdf8; }
+
+    /* ── Action rows ── */
+    .s-actions { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+    .s-action-row { display:flex; gap:5px; justify-content:center; flex-wrap:wrap; }
+    .btn-sm { padding:5px 10px !important; font-size:11px !important; display:inline-flex !important; align-items:center !important; gap:4px !important; border-radius:8px !important; }
+    .btn-sm svg, .btn-sm i { width:12px !important; height:12px !important; }
+    .btn-ghost { background:transparent; color:var(--text-secondary); border:1px solid rgba(255,255,255,0.07); padding:8px 18px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; transition:var(--transition); display:inline-flex; align-items:center; gap:6px; }
+    .btn-ghost:hover { border-color:var(--border-glass); color:var(--text-primary); background:rgba(255,255,255,0.04); }
+    .btn-success { background:rgba(74,222,128,0.12); color:var(--neon-green); border:1px solid rgba(74,222,128,0.28); padding:8px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:var(--transition); display:inline-flex; align-items:center; gap:6px; }
+    .btn-success:hover { background:rgba(74,222,128,0.22); box-shadow:0 0 12px rgba(74,222,128,0.15); }
+    .btn-warn { background:rgba(251,146,60,0.1); color:var(--neon-orange); border:1px solid rgba(251,146,60,0.25); padding:8px 18px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; transition:var(--transition); display:inline-flex; align-items:center; gap:6px; }
+    .btn-warn:hover { background:rgba(251,146,60,0.2); }
+
+    /* ── Select Checkbox ── */
+    .s-card-select { position:absolute; top:12px; left:12px; z-index:10; }
+    .s-card-select input[type="checkbox"] { width:17px; height:17px; accent-color:var(--neon-blue); cursor:pointer; opacity:0.55; transition:var(--transition); }
+    .s-card-select input[type="checkbox"]:hover, .s-card-select input[type="checkbox"]:checked { opacity:1; }
+
+    /* ── Modal ── */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72); backdrop-filter:blur(10px); z-index:1000; display:none; align-items:center; justify-content:center; }
     .modal-overlay.active { display:flex; }
     .modal { background:var(--bg-secondary); border:1px solid var(--border-glass); border-radius:20px; padding:28px; width:90%; max-width:520px; max-height:90vh; overflow-y:auto; }
     .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .modal-close { background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-muted); line-height:1; padding:4px; border-radius:6px; transition:var(--transition); }
+    .modal-close:hover { color:var(--text-primary); background:rgba(255,255,255,0.06); }
     .cam-box { border:2px solid var(--border-neon); border-radius:12px; overflow:hidden; background:#000; position:relative; margin-bottom:12px; }
     .cam-box video { width:100%; display:block; }
     .dots-row { display:flex; gap:6px; justify-content:center; margin:8px 0; }
     .dot { width:12px; height:12px; border-radius:50%; background:rgba(255,255,255,0.1); border:1px solid var(--border-glass); transition:var(--transition); }
     .dot.filled { background:var(--neon-blue); box-shadow:0 0 6px var(--neon-blue); }
     .dot.trained { background:var(--neon-green); box-shadow:0 0 6px var(--neon-green); }
-    @media(max-width:768px) { .sidebar { transform:translateX(-100%); } .main-content { margin-left:0; } .topbar,.content { padding-left:16px; padding-right:16px; } }
+
+    /* ── Hints ── */
+    .info-hint { background:rgba(56,189,248,0.05); border:1px solid rgba(56,189,248,0.15); border-radius:8px; padding:10px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:16px; line-height:1.5; }
+    .warn-hint { background:rgba(251,146,60,0.06); border:1px solid rgba(251,146,60,0.2); border-radius:8px; padding:10px 14px; font-size:12px; color:var(--neon-orange); margin-bottom:16px; line-height:1.5; }
+
+    /* ── Edit modal grid ── */
+    .edit-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+    .edit-grid .full { grid-column:1/-1; }
+
+    @media(max-width:768px) {
+      .sidebar { transform:translateX(-100%); }
+      .main-content { margin-left:0; }
+      .topbar, .content { padding-left:16px; padding-right:16px; }
+      .edit-grid { grid-template-columns:1fr; }
+      .edit-grid .full { grid-column:1; }
+    }
   </style>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
@@ -53,23 +102,35 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/face-engine.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/face-engine.js?v=2.1"></script>
+  <script src="../js/liveness.js?v=2.1"></script>
+  <script src="../js/auth-guard.js?v=2.1"></script>
 </head>
 <body>
 <div id="toast-container"></div>
 <canvas id="cap-canvas" style="display:none;"></canvas>
-
 <div id="sidebar-wrap"></div>
 
 <div class="main-content">
   <header class="topbar">
     <h1 style="font-size:18px;font-weight:700;">Student Management</h1>
-    <button class="btn-primary" onclick="openAdd()"><i data-lucide="user-plus"></i> Add Student</button>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-secondary" onclick="openImport()"><i data-lucide="file-spreadsheet"></i> Import CSV</button>
+      <button class="btn-primary" onclick="openAdd()"><i data-lucide="user-plus"></i> Add Student</button>
+    </div>
   </header>
   <div class="content">
-    <div class="toolbar">
-      <div class="search-bar"><i data-lucide="search"></i><input type="text" placeholder="Search students..." oninput="filterStudents(this.value)"></div>
+    <div class="toolbar" style="gap:16px;align-items:center;">
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;flex:1;">
+        <div class="search-bar"><i data-lucide="search"></i><input type="text" placeholder="Search students..." oninput="filterStudents(this.value)"></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer;user-select:none;">
+          <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this.checked)" style="width:16px;height:16px;accent-color:var(--neon-blue);cursor:pointer;margin:0;">
+          Select All
+        </label>
+        <button class="btn-danger" id="bulk-delete-btn" onclick="deleteSelectedStudents()" style="display:none;padding:8px 16px;font-size:12px;align-items:center;gap:6px;border-radius:30px;height:38px;">
+          <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Delete Selected (<span id="selected-count">0</span>)
+        </button>
+      </div>
       <div style="font-size:13px;color:var(--text-muted);" id="student-count">Loading...</div>
     </div>
     <div class="grid" id="student-grid">
@@ -78,103 +139,531 @@
   </div>
 </div>
 
-<!-- ADD STUDENT MODAL -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     ADD NEW STUDENT MODAL  (manual registration — form + camera)
+     ══════════════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="addModal">
   <div class="modal">
     <div class="modal-header">
-      <h3>Register New Student</h3>
-      <button onclick="closeAdd()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);">X</button>
+      <h3 style="font-size:16px;font-weight:700;">Register New Student</h3>
+      <button class="modal-close" onclick="closeAdd()">✕</button>
     </div>
-    <div class="form-group"><label>Full Name</label><input type="text" id="add-name" placeholder="e.g. Ravi Kumar"></div>
+    <div class="info-hint">
+      💡 After capturing 5 face photos, a Firebase login account is <strong>automatically created</strong> and a <strong>password setup email</strong> is sent to the student's email address. The student will set their own password.
+    </div>
+    <div class="form-group"><label>Full Name *</label><input type="text" id="add-name" placeholder="e.g. Ravi Kumar"></div>
     <div class="form-group"><label>Department</label><input type="text" id="add-dept" placeholder="e.g. Computer Science"></div>
     <div class="form-group"><label>Student ID (USN)</label><input type="text" id="add-sid" placeholder="e.g. 1RV21CS001"></div>
-    <div class="form-group"><label>Student Email (for login)</label><input type="email" id="add-email" placeholder="student@university.edu"></div>
-    <div class="form-group" style="display:flex;align-items:center;gap:8px;">
-      <input type="checkbox" id="create-login" onchange="document.getElementById('pw-group').style.display=this.checked?'block':'none'">
-      <label for="create-login" style="margin:0;cursor:pointer;font-size:13px;font-weight:600;">Create Login Account for Student?</label>
-    </div>
-    <div class="form-group" id="pw-group" style="display:none;">
-      <label>Temporary Password</label>
-      <input type="password" id="add-pass" placeholder="Min 8 characters">
-    </div>
+    <div class="form-group"><label>Student Email (required for login)</label><input type="email" id="add-email" placeholder="student@university.edu"></div>
     <div class="form-group">
       <label>Face Capture — 5 Photos for FaceNet-128 Training</label>
       <div class="cam-box" style="height:220px;"><video id="reg-video" autoplay playsinline muted style="height:100%;object-fit:cover;transform:scaleX(-1);"></video></div>
-      <div class="dots-row" id="dots-row">
-        <div class="dot" id="dot-0"></div><div class="dot" id="dot-1"></div>
-        <div class="dot" id="dot-2"></div><div class="dot" id="dot-3"></div><div class="dot" id="dot-4"></div>
+      <div class="dots-row" id="add-dots-row">
+        <div class="dot" id="add-dot-0"></div><div class="dot" id="add-dot-1"></div>
+        <div class="dot" id="add-dot-2"></div><div class="dot" id="add-dot-3"></div><div class="dot" id="add-dot-4"></div>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:8px;" id="cap-status">Position student's face in frame</div>
-      <button class="btn-secondary" style="width:100%;padding:12px;justify-content:center;" onclick="captureFrame()" id="cap-btn"><i data-lucide="camera"></i> Capture Face</button>
+      <div style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:8px;" id="add-cap-status">Position student's face in frame</div>
+      <button class="btn-secondary" style="width:100%;padding:12px;justify-content:center;" onclick="captureFrameAdd()" id="add-cap-btn">
+        <i data-lucide="camera"></i> Capture Photo
+      </button>
     </div>
     <div style="display:flex;gap:10px;margin-top:16px;">
       <button class="btn-secondary" style="flex:1;" onclick="closeAdd()">Cancel</button>
-      <button class="btn-primary" style="flex:2;" onclick="submitStudent()" id="submit-btn" disabled><i data-lucide="cpu"></i> Register & Extract Features</button>
+      <button class="btn-primary" style="flex:2;" onclick="submitNewStudent()" id="add-submit-btn" disabled>
+        <i data-lucide="cpu"></i> Register &amp; Save Face
+      </button>
     </div>
   </div>
 </div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     CAPTURE FACE MODAL  (for existing CSV-imported students)
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="captureModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="cap-modal-title" style="font-size:16px;font-weight:700;">Capture Face</h3>
+      <button class="modal-close" onclick="closeCaptureModal()">✕</button>
+    </div>
+    <div id="cap-modal-hint" class="info-hint"></div>
+    <div class="cam-box" style="height:240px;">
+      <video id="cap-modal-video" autoplay playsinline muted style="height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+    </div>
+    <div class="dots-row">
+      <div class="dot" id="cmd-dot-0"></div><div class="dot" id="cmd-dot-1"></div>
+      <div class="dot" id="cmd-dot-2"></div><div class="dot" id="cmd-dot-3"></div><div class="dot" id="cmd-dot-4"></div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:12px;" id="cap-modal-status">Position student's face in frame</div>
+    <button class="btn-secondary" style="width:100%;padding:12px;justify-content:center;margin-bottom:12px;" onclick="captureFrameModal()" id="cap-modal-btn">
+      <i data-lucide="camera"></i> Capture Photo
+    </button>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-secondary" style="flex:1;" onclick="closeCaptureModal()">Cancel</button>
+      <button class="btn-primary" style="flex:2;" onclick="saveCapturedFace()" id="cap-modal-submit" disabled>
+        <i data-lucide="save"></i> Save Face Data
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     EDIT STUDENT MODAL
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3 style="font-size:16px;font-weight:700;">Edit Student Details</h3>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div id="edit-email-warning" class="warn-hint" style="display:none;">
+      ⚠️ Changing the email here does <strong>not</strong> update the Firebase Auth login email. If the student cannot log in after an email change, use the Firebase Console to update their authentication email directly.
+    </div>
+    <div class="edit-grid">
+      <div class="form-group full"><label>Full Name *</label><input type="text" id="edit-name" placeholder="Student full name"></div>
+      <div class="form-group"><label>USN / Student ID</label><input type="text" id="edit-usn" placeholder="e.g. 1RV21CS001"></div>
+      <div class="form-group"><label>Department</label><input type="text" id="edit-dept" placeholder="e.g. Computer Science"></div>
+      <div class="form-group full"><label>Student Email</label><input type="email" id="edit-email" placeholder="student@university.edu" oninput="checkEditEmailWarning()"></div>
+      <div class="form-group full"><label>Parent Email</label><input type="email" id="edit-parent-email" placeholder="parent@gmail.com"></div>
+      <div class="form-group"><label>Student Phone</label><input type="tel" id="edit-phone" placeholder="+91XXXXXXXXXX"></div>
+      <div class="form-group"><label>Parent Phone</label><input type="tel" id="edit-parent-phone" placeholder="+91XXXXXXXXXX"></div>
+      <div class="form-group"><label>Semester</label><input type="text" id="edit-semester" placeholder="e.g. 6"></div>
+      <div class="form-group"><label>Section</label><input type="text" id="edit-section" placeholder="e.g. A"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn-secondary" style="flex:1;" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-primary" style="flex:2;" onclick="saveStudentEdit()" id="edit-save-btn">
+        <i data-lucide="save"></i> Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     VIEW STUDENT ACCOUNT STATUS MODAL
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="statusModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3 style="font-size:16px;font-weight:700;">Student Account Status</h3>
+      <button class="modal-close" onclick="closeStatusModal()">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;margin-top:12px;" id="status-modal-content">
+      <!-- Injected dynamically -->
+    </div>
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button class="btn-primary" style="width:100%;justify-content:center;" onclick="closeStatusModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     IMPORT CSV MODAL
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="max-width:680px;width:95%;">
+    <div class="modal-header">
+      <h3>Bulk Import Students</h3>
+      <button class="modal-close" onclick="closeImport()">✕</button>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;background:rgba(56,189,248,0.03);border:1px solid var(--border-glass);border-radius:10px;padding:10px 14px;">
+      <p style="font-size:12px;color:var(--text-secondary);margin:0;">Download the official CSV import template:</p>
+      <button class="btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="downloadCSVTemplate()"><i data-lucide="download"></i> Download Template</button>
+    </div>
+
+    <div class="form-group">
+      <label>Upload CSV File</label>
+      <div id="csv-drop-zone" style="border:2px dashed rgba(255,255,255,0.15);border-radius:12px;padding:28px;text-align:center;cursor:pointer;background:rgba(255,255,255,0.01);transition:0.3s;">
+        <i data-lucide="upload-cloud" style="width:32px;height:32px;color:var(--neon-blue);margin-bottom:8px;"></i>
+        <p style="font-size:13px;font-weight:500;">Drag &amp; drop CSV file here, or click to browse</p>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Supported: .csv (Max 5MB)</p>
+        <input type="file" id="csv-file" accept=".csv" style="display:none;">
+      </div>
+    </div>
+
+    <div id="import-report-section" style="display:none;margin-top:20px;border-top:1px solid var(--border-glass);padding-top:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h4 style="font-size:13px;font-weight:700;color:var(--neon-blue);" id="import-summary-text">Total Rows: 0 | Valid: 0 | Invalid: 0</h4>
+        <button class="btn-danger" id="download-failures-btn" style="padding:6px 12px;font-size:11px;display:none;" onclick="downloadFailedRows()"><i data-lucide="alert-triangle"></i> Download Failures CSV</button>
+      </div>
+      <div class="table-container" style="max-height:200px;overflow-y:auto;background:rgba(0,0,0,0.2);border:1px solid var(--border-glass);">
+        <table style="font-size:12px;">
+          <thead>
+            <tr>
+              <th style="padding:8px 12px;font-size:10px;">Row</th>
+              <th style="padding:8px 12px;font-size:10px;">USN</th>
+              <th style="padding:8px 12px;font-size:10px;">Name</th>
+              <th style="padding:8px 12px;font-size:10px;">Status</th>
+              <th style="padding:8px 12px;font-size:10px;">Details</th>
+            </tr>
+          </thead>
+          <tbody id="import-preview-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="import-progress-container" style="display:none;margin-top:20px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;color:var(--text-secondary);">
+        <span id="import-progress-text">Importing records...</span>
+        <span id="import-progress-pct">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="import-progress-bar" style="width:0%;"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button class="btn-secondary" style="flex:1;" onclick="closeImport()">Cancel</button>
+      <button class="btn-primary" style="flex:2;" onclick="startBulkImport()" id="import-btn" disabled><i data-lucide="upload-cloud"></i> Import Valid Records</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Credentials modal removed: Firebase-only onboarding sends setup email directly -->
+
 
 <script>
 requireAuth('teacher', '../');
 
 const faceEng = new FaceEngine();
-let allStudents = [], capturedDescriptors = [], capCount = 0, regStream = null;
+const livEng  = new LivenessEngine();
 
-// Secondary app for creating accounts without logging admin out
-const secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
+let allStudents        = [];
+let capturedDescriptors = [];
+let capCount           = 0;
+let regStream          = null;
+
+// Context for capture modal
+let editingStudentId   = null;
+let editingStudentEmail = null;
+let editingStudentName  = null;
+let isRetrainMode       = false;
+
+// Context for edit modal
+let currentEditId        = null;
+let currentEditHasLogin  = false;
+let currentEditOrigEmail = '';
+
+const selectedStudentIds = new Set();
+
+// Secondary Firebase app — creates student accounts without logging teacher out
+const secondaryApp  = firebase.initializeApp(firebaseConfig, 'SecondaryApp');
 const secondaryAuth = secondaryApp.auth();
 
 document.addEventListener('authReady', async () => {
   document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('students.html');
-  await faceEng.loadModels(null, true);  // lightweight — skip heavy SSD model
+  await faceEng.loadModels(null, true);
   lucide.createIcons();
   loadStudents();
+  setupDragAndDrop('csv-drop-zone', 'csv-file', handleCSVSelect);
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DRAG & DROP HELPER
+// ══════════════════════════════════════════════════════════════════════════════
+function setupDragAndDrop(zoneId, inputId, onFileSelected) {
+  const zone  = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  if (!zone || !input) return;
+
+  zone.addEventListener('click', () => input.click());
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.style.borderColor = 'var(--neon-blue)';
+    zone.style.background  = 'rgba(56,189,248,0.05)';
+  });
+  zone.addEventListener('dragleave', () => {
+    zone.style.borderColor = 'rgba(255,255,255,0.15)';
+    zone.style.background  = 'rgba(255,255,255,0.01)';
+  });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = 'rgba(255,255,255,0.15)';
+    zone.style.background  = 'rgba(255,255,255,0.01)';
+    if (e.dataTransfer.files.length) {
+      input.files = e.dataTransfer.files;
+      onFileSelected(e.dataTransfer.files[0]);
+    }
+  });
+  input.addEventListener('change', () => {
+    if (input.files.length) onFileSelected(input.files[0]);
+  });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  LOAD & RENDER
+// ══════════════════════════════════════════════════════════════════════════════
 async function loadStudents() {
+  selectedStudentIds.clear();
+  updateBulkDeleteUI();
   const snap = await db.collection('students').orderBy('name').get();
   allStudents = [];
   snap.forEach(d => allStudents.push({ id: d.id, ...d.data() }));
   renderStudents(allStudents);
 }
 
+function hasDescriptors(s) {
+  return s.descriptors && typeof s.descriptors === 'object' && Object.keys(s.descriptors).length > 0;
+}
+
+function getProfileBadge(s) {
+  if (!hasDescriptors(s)) return { text: 'Setup Needed',       cls: 'badge-orange' };
+  if (!s.uid)             return { text: 'Pending Activation', cls: 'badge-purple' };
+  if (s.accountStatus === 'Active') return { text: 'Active',   cls: 'badge-green'  };
+  return                         { text: 'Link Sent',          cls: 'badge-blue'   };
+}
+
 function renderStudents(list) {
   const grid = document.getElementById('student-grid');
-  document.getElementById('student-count').textContent = `${list.length} student${list.length!==1?'s':''}`;
-  if (!list.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-muted);">No students yet. Add your first student.</div>'; return; }
+  document.getElementById('student-count').textContent =
+    `${list.length} student${list.length !== 1 ? 's' : ''}`;
+
+  if (!list.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-muted);">No students yet. Import a CSV or add manually.</div>';
+    return;
+  }
+
   grid.innerHTML = list.map(s => {
-    const hasDesc = s.descriptors && (typeof s.descriptors === 'object') && Object.keys(s.descriptors).length > 0;
-    return `<div class="s-card fade-in">
-      <span class="reg-tag badge ${hasDesc?'badge-green':'badge-orange'}">${hasDesc?'Trained':'No Face'}</span>
+    const badge    = getProfileBadge(s);
+    const hasFace  = hasDescriptors(s);
+    const hasLogin = !!s.uid;
+    const isReady  = hasFace && hasLogin && s.accountStatus === 'Active';
+
+    const esc = v => (v || '').toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const id    = s.id;
+    const name  = esc(s.name);
+    const email = esc(s.email || '');
+    const dept  = s.dept || s.department || 'Engineering';
+    const usn   = s.studentId || s.usn || '';
+
+    // ── Eligibility chip ──────────────────────────────────────────────────
+    let chipHtml = '';
+    if (hasFace && hasLogin && s.accountStatus === 'Active') {
+      chipHtml = '<div class="eligibility-chip chip-ready">Active</div>';
+    } else if (hasFace && hasLogin) {
+      chipHtml = '<div class="eligibility-chip chip-emailsent">Setup Email Sent</div>';
+    } else if (hasFace && !hasLogin) {
+      chipHtml = '<div class="eligibility-chip chip-nologin">Account Setup Pending</div>';
+    } else {
+      chipHtml = '<div class="eligibility-chip chip-noface">Face Setup Needed</div>';
+    }
+
+    // ── Status pills (Humanized & Clean) ──────────────────────────────────
+    const facePill  = hasFace
+      ? '<span class="s-pill pill-green">Face Setup Complete</span>'
+      : '<span class="s-pill pill-orange">Face Setup Needed</span>';
+    const loginPill = (hasFace && hasLogin && s.accountStatus === 'Active')
+      ? '<span class="s-pill pill-purple">Setup Complete</span>'
+      : (hasLogin
+          ? '<span class="s-pill pill-blue">Setup Link Sent</span>'
+          : '<span class="s-pill pill-orange">Login Setup Pending</span>');
+    const parentPill = s.parent_email
+      ? '<span class="s-pill pill-blue">Parent Linked</span>'
+      : '';
+
+    // ── Action rows by enrollment state ──────────────────────────────────
+    let actionsHtml = '<div class="s-actions">';
+
+    if (!hasFace) {
+      // State 1: No face
+      actionsHtml += `
+        <div class="s-action-row">
+          <button class="btn-primary btn-sm" style="width:100%;justify-content:center;padding:8px 14px!important;" onclick="openCaptureModal('${id}','${name}','${email}',false)">
+            <i data-lucide="camera"></i> Capture Face
+          </button>
+        </div>
+        <div class="s-action-row">
+          <button class="btn-ghost btn-sm" onclick="openEditModal('${id}')"><i data-lucide="edit-3"></i> Edit</button>
+          <button class="btn-danger btn-sm" onclick="deleteStudent('${id}','${name}')"><i data-lucide="trash-2"></i></button>
+        </div>`;
+    } else if (!hasLogin) {
+      // State 2: Face captured, login not yet created
+      actionsHtml += `
+        <div class="s-action-row">
+          <button class="btn-ghost btn-sm" onclick="openCaptureModal('${id}','${name}','${email}',true)"><i data-lucide="refresh-cw"></i> Retrain</button>
+          <button class="btn-warn btn-sm" onclick="removeStudentFace('${id}','${name}')"><i data-lucide="x-circle"></i> Remove Face</button>
+        </div>
+        <div class="s-action-row" style="margin-top:4px;">
+          <button class="btn-success btn-sm" style="width:100%;justify-content:center;padding:8px 14px!important;" onclick="createStudentLoginManual('${id}','${email}','${name}')">
+            <i data-lucide="mail"></i> Create Account &amp; Send Setup Email
+          </button>
+        </div>
+        <div class="s-action-row">
+          <button class="btn-ghost btn-sm" style="flex:1;justify-content:center;" onclick="openStatusModal('${id}')"><i data-lucide="info"></i> View Status</button>
+          <button class="btn-ghost btn-sm" onclick="openEditModal('${id}')"><i data-lucide="edit-3"></i> Edit</button>
+          <button class="btn-danger btn-sm" onclick="deleteStudent('${id}','${name}')"><i data-lucide="trash-2"></i></button>
+        </div>`;
+    } else {
+      // State 3: Fully enrolled — face + login
+      actionsHtml += `
+        <div class="s-action-row">
+          <button class="btn-ghost btn-sm" onclick="openCaptureModal('${id}','${name}','${email}',true)"><i data-lucide="refresh-cw"></i> Retrain</button>
+          <button class="btn-warn btn-sm" onclick="removeStudentFace('${id}','${name}')"><i data-lucide="x-circle"></i> Remove Face</button>
+        </div>
+        <div class="s-action-row" style="margin-top:4px;width:100%;">
+          <button class="btn-ghost btn-sm" style="width:100%;justify-content:center;color:var(--neon-blue);border-color:rgba(56,189,248,0.2);" onclick="resetStudentPassword('${id}','${email}','${name}')">
+            <i data-lucide="mail"></i> Resend Setup Link / Reset Password
+          </button>
+        </div>
+        <div class="s-action-row">
+          <button class="btn-ghost btn-sm" style="flex:1;justify-content:center;" onclick="openStatusModal('${id}')"><i data-lucide="info"></i> View Status</button>
+          <button class="btn-ghost btn-sm" onclick="openEditModal('${id}')"><i data-lucide="edit-3"></i> Edit</button>
+          <button class="btn-danger btn-sm" onclick="deleteStudent('${id}','${name}')"><i data-lucide="trash-2"></i></button>
+        </div>`;
+    }
+
+    actionsHtml += '</div>';
+
+    const isChecked = selectedStudentIds.has(s.id) ? 'checked' : '';
+
+    return `
+    <div class="s-card fade-in ${isReady ? 'state-ready' : ''}" id="card-${s.id}">
+      <div class="s-card-select">
+        <input type="checkbox" class="student-select-checkbox" data-id="${s.id}" ${isChecked} onchange="onStudentSelectChange(this)">
+      </div>
+      <span class="reg-tag badge ${badge.cls}">${badge.text}</span>
+
       <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1e3a5f&color=38bdf8&size=128" class="s-avatar">
       <div class="s-name">${s.name}</div>
-      <div class="s-uid">${s.studentId ? s.studentId + ' · ' : ''}${s.dept||'Engineering'}</div>
-      <div class="s-actions">
-        <button class="btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="retrain('${s.id}','${s.name}')"><i data-lucide="refresh-cw"></i> Retrain</button>
-        <button class="btn-danger" style="padding:6px 10px;font-size:11px;" onclick="deleteStudent('${s.id}','${s.name}')"><i data-lucide="trash-2"></i></button>
+      <div class="s-meta">${usn ? usn + ' · ' : ''}${dept}</div>
+
+      ${chipHtml}
+
+      <div class="status-bar">
+        ${facePill}${loginPill}${parentPill}
       </div>
+
+      ${actionsHtml}
     </div>`;
   }).join('');
+
+  updateBulkDeleteUI();
   lucide.createIcons();
 }
 
-function filterStudents(q) { renderStudents(allStudents.filter(s => s.name.toLowerCase().includes(q.toLowerCase()))); }
+function filterStudents(q) {
+  const lower = q.toLowerCase();
+  renderStudents(allStudents.filter(s =>
+    (s.name || '').toLowerCase().includes(lower) ||
+    (s.studentId || '').toLowerCase().includes(lower) ||
+    (s.usn || '').toLowerCase().includes(lower) ||
+    (s.email || '').toLowerCase().includes(lower)
+  ));
+}
 
-// ── ADD STUDENT ───────────────────────────────────────────────────────────
-async function openAdd() {
-  capturedDescriptors = []; capCount = 0; updateDots();
-  document.getElementById('add-name').value = '';
-  document.getElementById('add-dept').value = '';
-  document.getElementById('add-sid').value = '';
-  document.getElementById('add-email').value = '';
-  document.getElementById('add-pass').value = '';
-  document.getElementById('create-login').checked = false;
-  document.getElementById('pw-group').style.display = 'none';
-  document.getElementById('addModal').classList.add('active');
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  BULK SELECTION
+// ══════════════════════════════════════════════════════════════════════════════
+function updateBulkDeleteUI() {
+  const checkboxes        = document.querySelectorAll('.student-select-checkbox');
+  const totalCount        = checkboxes.length;
+  let   visibleChecked    = 0;
+  checkboxes.forEach(cb => { if (cb.checked) visibleChecked++; });
+
+  const selectAll = document.getElementById('select-all-checkbox');
+  if (selectAll) {
+    selectAll.checked       = totalCount > 0 && visibleChecked === totalCount;
+    selectAll.indeterminate = visibleChecked > 0 && visibleChecked < totalCount;
+  }
+
+  const bulkBtn = document.getElementById('bulk-delete-btn');
+  if (bulkBtn) {
+    if (selectedStudentIds.size > 0) {
+      bulkBtn.style.display = 'inline-flex';
+      document.getElementById('selected-count').textContent = selectedStudentIds.size;
+    } else {
+      bulkBtn.style.display = 'none';
+    }
+  }
+}
+
+function onStudentSelectChange(checkbox) {
+  const id = checkbox.dataset.id;
+  checkbox.checked ? selectedStudentIds.add(id) : selectedStudentIds.delete(id);
+  updateBulkDeleteUI();
+}
+
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.student-select-checkbox').forEach(cb => {
+    cb.checked = checked;
+    checked ? selectedStudentIds.add(cb.dataset.id) : selectedStudentIds.delete(cb.dataset.id);
+  });
+  updateBulkDeleteUI();
+}
+
+async function deleteSelectedStudents() {
+  const size = selectedStudentIds.size;
+  if (!size) return;
+  if (!confirm(`Delete ${size} selected student(s)? This permanently removes their profile and face data.`)) return;
+
+  const bulkBtn    = document.getElementById('bulk-delete-btn');
+  const origHTML   = bulkBtn.innerHTML;
+  bulkBtn.disabled = true;
+  bulkBtn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:6px;display:inline-block;vertical-align:middle;"></div> Deleting...';
+
   try {
-    regStream = await navigator.mediaDevices.getUserMedia({ 
-      video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 480, max: 720 } }, 
-      audio: false 
+    const ids = Array.from(selectedStudentIds);
+    for (let i = 0; i < ids.length; i += 200) {
+      const batch = db.batch();
+      ids.slice(i, i + 200).forEach(id => batch.delete(db.collection('students').doc(id)));
+      await batch.commit();
+    }
+    showToast(`Deleted ${size} students!`, 'success');
+    await loadStudents();
+  } catch(e) {
+    showToast(`Failed to delete: ${e.message}`, 'error');
+    bulkBtn.disabled = false;
+    bulkBtn.innerHTML = origHTML;
+  }
+}
+
+async function deleteStudent(id, name) {
+  if (!confirm(`Delete ${name}? This removes all their face data and enrollment record.`)) return;
+  await db.collection('students').doc(id).delete();
+  showToast(`${name} removed`, 'success');
+  loadStudents();
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DOT PROGRESS (shared — prefix: 'add-dot-' or 'cmd-dot-')
+// ══════════════════════════════════════════════════════════════════════════════
+function updateDots(prefix) {
+  for (let i = 0; i < 5; i++) {
+    const el = document.getElementById(`${prefix}${i}`);
+    if (el) el.className = 'dot' + (i < capCount ? ' trained' : '');
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ADD NEW STUDENT MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+async function openAdd() {
+  capturedDescriptors = []; capCount = 0;
+  updateDots('add-dot-');
+  ['add-name','add-dept','add-sid','add-email'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('add-cap-status').textContent = "Position student's face in frame";
+  document.getElementById('add-submit-btn').disabled = true;
+  document.getElementById('add-cap-btn').disabled = false;
+  document.getElementById('addModal').classList.add('active');
+
+  try {
+    regStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 480, max: 720 } },
+      audio: false
     });
     document.getElementById('reg-video').srcObject = regStream;
   } catch(e) { showToast('Camera access denied', 'error'); }
@@ -186,125 +675,721 @@ function closeAdd() {
   if (regStream) { regStream.getTracks().forEach(t => t.stop()); regStream = null; }
 }
 
-async function captureFrame() {
+async function captureFrameAdd() {
   if (capCount >= 5) return;
-  const video = document.getElementById('reg-video');
-  const capBtn = document.getElementById('cap-btn');
+  const video  = document.getElementById('reg-video');
+  const capBtn = document.getElementById('add-cap-btn');
   capBtn.disabled = true;
-  document.getElementById('cap-status').textContent = 'Extracting FaceNet-128 descriptor...';
+  document.getElementById('add-cap-status').textContent = 'Validating face quality...';
 
-  const desc = await faceEng.extractDescriptor(video);
-  if (!desc) {
-    document.getElementById('cap-status').textContent = 'No face detected — center your face and try again';
+  const q = livEng.assessQuality(video);
+  if (!q.overall) {
+    document.getElementById('add-cap-status').textContent = `Quality Fail: ${q.hint}`;
     capBtn.disabled = false;
     return;
   }
 
+  document.getElementById('add-cap-status').textContent = 'Extracting FaceNet-128 descriptor...';
+  // Use raw faceapi to get detection score + descriptor for quality enforcement
+  const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+  if (!det) {
+    document.getElementById('add-cap-status').textContent = 'No face detected — center your face and try again';
+    capBtn.disabled = false;
+    return;
+  }
+  if (det.detection.score < 0.80) {
+    document.getElementById('add-cap-status').textContent = `Low detection confidence (${(det.detection.score*100).toFixed(0)}%) — improve lighting or move closer`;
+    capBtn.disabled = false;
+    return;
+  }
+  const desc = det.descriptor;
+
   capturedDescriptors.push(desc);
   capCount++;
-  updateDots();
-  document.getElementById('cap-status').textContent = `Capture ${capCount}/5 — ${capCount<5?'Move head slightly for next capture':'All captures done!'}`;
-  document.getElementById('submit-btn').disabled = capCount < 5;
+  updateDots('add-dot-');
+  document.getElementById('add-cap-status').textContent =
+    `Capture ${capCount}/5 — ${capCount < 5 ? 'Move head slightly for next' : 'All captures done!'}`;
+  document.getElementById('add-submit-btn').disabled = capCount < 5;
   capBtn.disabled = capCount >= 5;
   lucide.createIcons();
 }
 
-function updateDots() {
-  for (let i = 0; i < 5; i++) {
-    document.getElementById(`dot-${i}`).className = 'dot' + (i < capCount ? ' trained' : '');
+async function submitNewStudent() {
+  const name    = document.getElementById('add-name').value.trim();
+  const dept    = document.getElementById('add-dept').value.trim() || 'Engineering';
+  const email   = document.getElementById('add-email').value.trim().toLowerCase();
+  const sid     = document.getElementById('add-sid').value.trim();
+
+  if (!name || capturedDescriptors.length < 5) {
+    showToast('Enter name and capture 5 face images', 'error'); return;
   }
-}
 
-async function submitStudent() {
-  const name  = document.getElementById('add-name').value.trim();
-  const dept  = document.getElementById('add-dept').value.trim() || 'Engineering';
-  const email = document.getElementById('add-email').value.trim();
-  const sid   = document.getElementById('add-sid').value.trim();
-  const pass  = document.getElementById('add-pass').value;
-  const doLogin = document.getElementById('create-login').checked;
+  // Validate email format
+  const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (email && !emailRx.test(email)) {
+    showToast('Invalid email format', 'error'); return;
+  }
 
-  if (!name || capturedDescriptors.length < 5) { showToast('Enter name and capture 5 face images', 'error'); return; }
-  if (doLogin && pass.length < 8) { showToast('Password must be at least 8 characters', 'error'); return; }
-  if (doLogin && !email) { showToast('Email required to create login', 'error'); return; }
-
-  const btn = document.getElementById('submit-btn');
-  btn.disabled = true; btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:0 auto;"></div> Processing...';
+  const btn = document.getElementById('add-submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:0 auto;"></div> Processing...';
 
   try {
-    // Validate duplicate student
+    // Duplicate email check
     if (email) {
-      const existSnap = await db.collection('students').where('email', '==', email).get();
-      if (!existSnap.empty) {
-        showToast('Student with this email already exists!', 'error');
-        btn.disabled = false; btn.innerHTML = '<i data-lucide="cpu"></i> Register & Extract Features'; lucide.createIcons();
+      const snap = await db.collection('students').where('email', '==', email).get();
+      if (!snap.empty) {
+        showToast('A student with this email already exists!', 'error');
+        btn.disabled = false; btn.innerHTML = '<i data-lucide="cpu"></i> Register & Save Face'; lucide.createIcons();
+        return;
+      }
+    }
+    // Duplicate USN check
+    if (sid) {
+      const snap2 = await db.collection('students').where('usn', '==', sid).get();
+      if (!snap2.empty) {
+        showToast('A student with this USN already exists!', 'error');
+        btn.disabled = false; btn.innerHTML = '<i data-lucide="cpu"></i> Register & Save Face'; lucide.createIcons();
         return;
       }
     }
 
-    let authUid = null;
-
-    // Create Firebase Auth account if requested (uses secondary app to keep admin logged in)
-    if (doLogin) {
-      const cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
-      authUid = cred.user.uid;
-      
-      // Setup role-based user profile
-      await db.collection('users').doc(authUid).set({
-        name, email, role: 'student', studentId: sid,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      await secondaryAuth.signOut();
-    }
-
-    // Compute mean descriptor for robustness
-    const meanDesc = Array.from(faceEng._meanDescriptor(capturedDescriptors));
-
-    // Convert descriptors to a Firestore-compatible map
+    const meanDesc      = Array.from(faceEng._meanDescriptor(capturedDescriptors));
     const descriptorMap = {};
     capturedDescriptors.forEach((d, i) => { descriptorMap[`d${i}`] = Array.from(d); });
 
-    await db.collection('students').add({
-      name, dept, email, studentId: sid,
-      uid: authUid, // Link auth if created
+    // Write student document first (uid will be updated by autoCreateLogin)
+    const newRef = await db.collection('students').add({
+      name, dept, department: dept, email, studentId: sid, usn: sid,
+      uid: null,
       descriptors: descriptorMap,
       meanDescriptor: meanDesc,
-      registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+      faceUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      registeredAt:  firebase.firestore.FieldValue.serverTimestamp(),
       addedBy: auth.currentUser.uid
     });
 
-    showToast(`${name} registered successfully!`, 'success');
     closeAdd();
+
+    // Auto-create login if email provided
+    if (email) {
+      await autoCreateLogin(email, name, newRef.id);
+    } else {
+      showToast(`${name} registered successfully!`, 'success');
+    }
+
     loadStudents();
   } catch(e) {
-    showToast(e.code === 'auth/email-already-in-use' ? 'Email already registered in system.' : 'Error: ' + e.message, 'error');
+    showToast('Error: ' + e.message, 'error');
   }
-  btn.disabled = false; btn.innerHTML = '<i data-lucide="cpu"></i> Register & Extract Features'; lucide.createIcons();
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="cpu"></i> Register & Save Face';
+  lucide.createIcons();
 }
 
-async function deleteStudent(id, name) {
-  if (!confirm(`Delete ${name}? This removes all their face data.`)) return;
-  await db.collection('students').doc(id).delete();
-  showToast(`${name} removed`, 'success');
-  loadStudents();
-}
 
-async function retrain(id, name) {
-  capturedDescriptors = []; capCount = 0;
-  document.getElementById('add-name').value = name;
-  document.getElementById('addModal').classList.add('active');
+// ══════════════════════════════════════════════════════════════════════════════
+//  CAPTURE FACE MODAL  (for existing students from CSV)
+// ══════════════════════════════════════════════════════════════════════════════
+async function openCaptureModal(studentId, studentName, studentEmail, isRetrain) {
+  editingStudentId    = studentId;
+  editingStudentEmail = studentEmail;
+  editingStudentName  = studentName;
+  isRetrainMode       = isRetrain;
+  capturedDescriptors = [];
+  capCount            = 0;
+  updateDots('cmd-dot-');
+
+  const title = isRetrain
+    ? `Retrain Face — ${studentName}`
+    : `Capture Face — ${studentName}`;
+  document.getElementById('cap-modal-title').textContent = title;
+
+  const hint = isRetrain
+    ? `Retraining will overwrite existing face data for <strong>${studentName}</strong>.`
+    : studentEmail
+      ? `After saving, a Firebase login account will be <strong>automatically created</strong> and a <strong>password setup email</strong> will be sent to <strong>${studentEmail}</strong>.`
+      : `Face data will be saved. To create a login, add an email first via the Edit button.`;
+  document.getElementById('cap-modal-hint').innerHTML = hint;
+
+  document.getElementById('cap-modal-status').textContent = "Position student's face in frame";
+  document.getElementById('cap-modal-submit').disabled = true;
+  document.getElementById('cap-modal-btn').disabled    = false;
+  document.getElementById('captureModal').classList.add('active');
+
   try {
-    regStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
-    document.getElementById('reg-video').srcObject = regStream;
-    document.getElementById('submit-btn').onclick = async () => {
-      if (capturedDescriptors.length < 5) { showToast('Capture 5 images first','error'); return; }
-      const meanDesc = Array.from(faceEng._meanDescriptor(capturedDescriptors));
-      const descriptorMap = {};
-      capturedDescriptors.forEach((d, i) => { descriptorMap[`d${i}`] = Array.from(d); });
-      await db.collection('students').doc(id).update({ descriptors: descriptorMap, meanDescriptor:meanDesc });
-      showToast(`${name} retrained!`, 'success'); closeAdd(); loadStudents();
+    regStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 480, max: 720 } },
+      audio: false
+    });
+    document.getElementById('cap-modal-video').srcObject = regStream;
+  } catch(e) { showToast('Camera access denied', 'error'); }
+  lucide.createIcons();
+}
+
+function closeCaptureModal() {
+  document.getElementById('captureModal').classList.remove('active');
+  if (regStream) { regStream.getTracks().forEach(t => t.stop()); regStream = null; }
+}
+
+async function captureFrameModal() {
+  if (capCount >= 5) return;
+  const video  = document.getElementById('cap-modal-video');
+  const capBtn = document.getElementById('cap-modal-btn');
+  capBtn.disabled = true;
+  document.getElementById('cap-modal-status').textContent = 'Validating face quality...';
+
+  const q = livEng.assessQuality(video);
+  if (!q.overall) {
+    document.getElementById('cap-modal-status').textContent = `Quality Fail: ${q.hint}`;
+    capBtn.disabled = false;
+    return;
+  }
+
+  document.getElementById('cap-modal-status').textContent = 'Extracting FaceNet-128 descriptor...';
+  // Use raw faceapi to get detection score + descriptor for quality enforcement
+  const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+  if (!det) {
+    document.getElementById('cap-modal-status').textContent = 'No face detected — center your face and try again';
+    capBtn.disabled = false;
+    return;
+  }
+  if (det.detection.score < 0.80) {
+    document.getElementById('cap-modal-status').textContent = `Low detection confidence (${(det.detection.score*100).toFixed(0)}%) — improve lighting or move closer`;
+    capBtn.disabled = false;
+    return;
+  }
+  const desc = det.descriptor;
+
+  capturedDescriptors.push(desc);
+  capCount++;
+  updateDots('cmd-dot-');
+  document.getElementById('cap-modal-status').textContent =
+    `Capture ${capCount}/5 — ${capCount < 5 ? 'Adjust head position slightly for next photo' : 'All photos captured — click Save to continue.'}`;
+  document.getElementById('cap-modal-submit').disabled = capCount < 5;
+  capBtn.disabled = capCount >= 5;
+  lucide.createIcons();
+}
+
+async function saveCapturedFace() {
+  if (capturedDescriptors.length < 5 || !editingStudentId) return;
+
+  const btn = document.getElementById('cap-modal-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;margin-right:6px;vertical-align:middle;"></div> Saving...';
+
+  try {
+    const meanDesc      = Array.from(faceEng._meanDescriptor(capturedDescriptors));
+    const descriptorMap = {};
+    capturedDescriptors.forEach((d, i) => { descriptorMap[`d${i}`] = Array.from(d); });
+
+    const studentRef = db.collection('students').doc(editingStudentId);
+    await studentRef.update({
+      descriptors:    descriptorMap,
+      meanDescriptor: meanDesc,
+      faceUpdatedAt:  firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    closeCaptureModal();
+
+    if (!isRetrainMode && editingStudentEmail) {
+      // Check if login already exists
+      const snap = await studentRef.get();
+      if (snap.exists && !snap.data().uid) {
+        await autoCreateLogin(editingStudentEmail, editingStudentName, editingStudentId);
+      } else {
+        showToast('Face saved! Login already exists for this student.', 'success');
+      }
+    } else {
+      showToast(isRetrainMode ? `${editingStudentName}'s face retrained!` : 'Face captured!', 'success');
+    }
+
+    loadStudents();
+  } catch(e) {
+    showToast('Failed to save face: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="save"></i> Save Face Data';
+    lucide.createIcons();
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  AUTO LOGIN CREATION
+// ══════════════════════════════════════════════════════════════════════════════
+async function autoCreateLogin(email, name, studentDocId) {
+  // 1. Validate Email Existence & Format
+  if (!email) {
+    showToast(`Onboarding notice: Email address is missing for student ${name}. Please edit student details first.`, 'orange', 6000);
+    return;
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    showToast(`Onboarding cancelled: Invalid email format for ${name} (${email}).`, 'error', 6000);
+    return;
+  }
+
+  try {
+    // Step 1: Backend creates the Firebase Auth account + Firestore docs
+    const idToken = await auth.currentUser.getIdToken();
+    const resp = await fetch(getApiUrl(`/api/students/${studentDocId}/onboard`), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.message || `HTTP ${resp.status}`);
+    }
+    
+    const result = await resp.json();
+    if (!result.success) {
+      showToast(`Onboarding failed: ${result.message}`, 'error', 8000);
+      return;
+    }
+
+    // Step 2: Client-side sendPasswordResetEmail() — this is what actually sends the email
+    // firebase.auth().sendPasswordResetEmail() triggers Firebase's built-in email delivery.
+    // We use the primary auth instance (not secondaryAuth) because sendPasswordResetEmail
+    // does NOT require sign-in — it's a standalone call.
+    try {
+      await auth.sendPasswordResetEmail(email);
+      showToast(`✅ ${name}: Account created and password setup email sent to ${email}`, 'success', 8000);
+    } catch(emailErr) {
+      console.error('sendPasswordResetEmail failed:', emailErr);
+      showToast(`⚠️ ${name}: Account created, but setup email failed to send (${emailErr.code}). Use "Resend Setup Link" to retry.`, 'error', 10000);
+    }
+  } catch(e) {
+    showToast(`Face captured, but automated account creation failed: ${e.message}`, 'error', 8000);
+  }
+}
+
+async function createStudentLoginManual(id, email, name) {
+  if (!email) {
+    showToast('No email on record. Edit the student to add an email first.', 'error'); return;
+  }
+  if (!confirm(`Create Firebase login for ${name} (${email})?\n\nA password setup email will be sent to the student.`)) return;
+
+  try {
+    showToast('Creating login...', 'info', 3000);
+    await autoCreateLogin(email, name, id);
+    loadStudents();
+  } catch(e) {
+    showToast('Failed: ' + e.message, 'error');
+  }
+}
+
+async function resetStudentPassword(studentId, email, name) {
+  if (!email) { showToast('No email on record for this student.', 'error'); return; }
+  if (!confirm(`Reset password for ${name} (${email})?\n\nA new password setup email will be sent to the student.`)) return;
+  try {
+    showToast('Sending password reset email...', 'info', 3000);
+    // Direct client-side call — no backend needed for resets
+    await auth.sendPasswordResetEmail(email);
+    showToast(`✅ Password reset email sent to ${email}`, 'success', 6000);
+  } catch(e) {
+    showToast(`Failed: ${e.message}`, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CREDENTIALS MODAL HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+// Credentials modal removed — Firebase-only onboarding sends password setup email to student
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  REMOVE FACE
+// ══════════════════════════════════════════════════════════════════════════════
+async function removeStudentFace(id, name) {
+  if (!confirm(`Remove face data for ${name}?\n\nThey will be ineligible for attendance until re-captured.`)) return;
+  try {
+    await db.collection('students').doc(id).update({
+      descriptors:    firebase.firestore.FieldValue.delete(),
+      meanDescriptor: firebase.firestore.FieldValue.delete(),
+      faceUpdatedAt:  firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast(`Face data removed for ${name}`, 'success');
+    loadStudents();
+  } catch(e) {
+    showToast('Failed to remove face: ' + e.message, 'error');
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  EDIT STUDENT MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+function checkEditEmailWarning() {
+  const newEmail = document.getElementById('edit-email').value.trim().toLowerCase();
+  const warning  = document.getElementById('edit-email-warning');
+  if (currentEditHasLogin && newEmail !== currentEditOrigEmail) {
+    warning.style.display = 'block';
+  } else {
+    warning.style.display = 'none';
+  }
+}
+
+async function openEditModal(id) {
+  const s = allStudents.find(s => s.id === id);
+  if (!s) return;
+
+  currentEditId        = id;
+  currentEditHasLogin  = !!s.uid;
+  currentEditOrigEmail = (s.email || '').toLowerCase();
+
+  document.getElementById('edit-name').value         = s.name || '';
+  document.getElementById('edit-usn').value          = s.studentId || s.usn || '';
+  document.getElementById('edit-dept').value         = s.dept || s.department || '';
+  document.getElementById('edit-email').value        = s.email || '';
+  document.getElementById('edit-parent-email').value = s.parent_email || '';
+  document.getElementById('edit-phone').value        = s.student_phone || '';
+  document.getElementById('edit-parent-phone').value = s.parent_phone || '';
+  document.getElementById('edit-semester').value     = s.semester || '';
+  document.getElementById('edit-section').value      = s.section || '';
+  document.getElementById('edit-email-warning').style.display = 'none';
+
+  document.getElementById('edit-save-btn').disabled  = false;
+  document.getElementById('edit-save-btn').innerHTML = '<i data-lucide="save"></i> Save Changes';
+  document.getElementById('editModal').classList.add('active');
+  lucide.createIcons();
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('active');
+  currentEditId = null;
+}
+
+function openStatusModal(studentId) {
+  const s = allStudents.find(st => st.id === studentId);
+  if (!s) {
+    showToast('Student not found in memory.', 'error');
+    return;
+  }
+  
+  const id = s.id;
+  const name = s.name;
+  const email = s.email || 'No email registered';
+  const hasFace = !!s.descriptors;
+  const hasLogin = !!s.uid;
+  
+  let statusText = 'Face Setup Needed';
+  let statusClass = 'badge-orange';
+  
+  if (s.accountStatus === 'Active') {
+    statusText = 'Active';
+    statusClass = 'badge-green';
+  } else if (hasFace && hasLogin) {
+    statusText = 'Password Setup Email Sent';
+    statusClass = 'badge-blue';
+  } else if (hasFace && !hasLogin) {
+    statusText = 'Account Setup Pending';
+    statusClass = 'badge-purple';
+  }
+  
+  const contentEl = document.getElementById('status-modal-content');
+  contentEl.innerHTML = `
+    <div style="text-align:center;padding:12px 0;">
+      <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1e3a5f&color=38bdf8&size=96" style="width:72px;height:72px;border-radius:50%;border:2px solid var(--border-glass);margin-bottom:12px;">
+      <h4 style="font-size:16px;font-weight:700;margin:0;">${name}</h4>
+      <p style="font-size:12px;color:var(--text-muted);margin:4px 0 12px;">${email}</p>
+      <span class="badge ${statusClass}" style="font-size:12px;padding:6px 14px;display:inline-block;">${statusText}</span>
+    </div>
+    
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border-glass);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;font-size:13px;">
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);">USN/ID:</span><span>${s.studentId || s.usn || '--'}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);">Department:</span><span>${s.dept || s.department || '--'}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);">Authentication UID:</span><span style="font-family:monospace;font-size:11px;">${s.uid || 'Not Created'}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);">Parent Linked:</span><span>${s.parent_email ? 'Yes' : 'No'}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted);">Registered At:</span><span>${s.registeredAt ? (s.registeredAt.toDate ? s.registeredAt.toDate().toLocaleDateString() : s.registeredAt) : '--'}</span></div>
+    </div>
+  `;
+  
+  document.getElementById('statusModal').classList.add('active');
+  lucide.createIcons();
+}
+
+function closeStatusModal() {
+  document.getElementById('statusModal').classList.remove('active');
+}
+
+async function saveStudentEdit() {
+  if (!currentEditId) return;
+
+  const name        = document.getElementById('edit-name').value.trim();
+  const usn         = document.getElementById('edit-usn').value.trim();
+  const email       = document.getElementById('edit-email').value.trim().toLowerCase();
+  const parentEmail = document.getElementById('edit-parent-email').value.trim().toLowerCase();
+  const phone       = document.getElementById('edit-phone').value.trim();
+  const parentPhone = document.getElementById('edit-parent-phone').value.trim();
+  const dept        = document.getElementById('edit-dept').value.trim();
+  const semester    = document.getElementById('edit-semester').value.trim();
+  const section     = document.getElementById('edit-section').value.trim();
+
+  // Validation
+  if (!name) { showToast('Student name is required', 'error'); return; }
+  const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (email && !emailRx.test(email)) { showToast('Invalid student email format', 'error'); return; }
+  if (parentEmail && !emailRx.test(parentEmail)) { showToast('Invalid parent email format', 'error'); return; }
+
+  // Duplicate USN check (exclude self)
+  if (usn) {
+    const dupUsn = allStudents.find(s => s.id !== currentEditId && (s.studentId === usn || s.usn === usn));
+    if (dupUsn) { showToast(`USN ${usn} is already assigned to ${dupUsn.name}`, 'error'); return; }
+  }
+  // Duplicate email check (exclude self)
+  if (email) {
+    const dupEmail = allStudents.find(s => s.id !== currentEditId && s.email === email);
+    if (dupEmail) { showToast(`Email ${email} is already assigned to ${dupEmail.name}`, 'error'); return; }
+  }
+
+  const btn = document.getElementById('edit-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;margin-right:6px;vertical-align:middle;"></div> Saving...';
+
+  try {
+    await db.collection('students').doc(currentEditId).update({
+      name,
+      studentId: usn, usn,
+      email, parent_email: parentEmail,
+      student_phone: phone, parent_phone: parentPhone,
+      dept, department: dept,
+      semester, section,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast(`${name} updated successfully!`, 'success');
+    closeEditModal();
+    loadStudents();
+  } catch(e) {
+    showToast('Failed to save: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="save"></i> Save Changes';
+    lucide.createIcons();
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CSV IMPORT
+// ══════════════════════════════════════════════════════════════════════════════
+let importRows = [];
+let failedRows = [];
+
+function openImport() {
+  importRows = []; failedRows = [];
+  document.getElementById('csv-file').value = '';
+  document.getElementById('import-report-section').style.display   = 'none';
+  document.getElementById('import-progress-container').style.display = 'none';
+  document.getElementById('import-btn').disabled = true;
+  document.getElementById('importModal').classList.add('active');
+}
+
+function closeImport() {
+  document.getElementById('importModal').classList.remove('active');
+}
+
+function downloadCSVTemplate() {
+  const headers   = 'usn,name,email,parent_email,student_phone,parent_phone,department,semester,section\n';
+  const sampleRow = '1RV21CS001,John Doe,john.doe@university.edu,parent.doe@gmail.com,+919876543210,+919876543211,Computer Science,6,A\n';
+  const blob = new Blob([headers + sampleRow], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'student_import_template.csv');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function handleCSVSelect(file) {
+  if (!file) return;
+  if (!file.name.endsWith('.csv')) { showToast('Only CSV files are supported.', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const parsed = parseCSV(e.target.result);
+    if (parsed.length <= 1) { showToast('CSV file is empty or missing data rows.', 'error'); return; }
+    validateCSVRows(parsed);
+  };
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  const lines = [];
+  let row = [''], inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i+1];
+    if (c === '"') {
+      if (inQuotes && next === '"') { row[row.length-1] += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (c === ',' && !inQuotes) {
+      row.push('');
+    } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      if (c === '\r' && next === '\n') i++;
+      lines.push(row); row = [''];
+    } else {
+      row[row.length-1] += c;
+    }
+  }
+  if (row.length > 1 || row[0] !== '') lines.push(row);
+  return lines;
+}
+
+function validateCSVRows(parsed) {
+  const required = ['usn','name','email','parent_email','student_phone','parent_phone','department','semester','section'];
+  const headers  = parsed[0].map(h => h.trim().toLowerCase());
+  const idx      = {};
+  required.forEach(r => { idx[r] = headers.indexOf(r); });
+
+  if (idx.usn === -1 || idx.name === -1 || idx.email === -1) {
+    showToast("CSV must contain at least 'usn', 'name', and 'email' columns.", 'error'); return;
+  }
+
+  importRows = []; failedRows = [];
+  const seenUsn   = new Set();
+  const seenEmail = new Set();
+  const emailRx   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRx   = /^\+?[0-9\s\-]{7,15}$/;
+
+  for (let i = 1; i < parsed.length; i++) {
+    const row = parsed[i];
+    if (!row.length || (row.length === 1 && row[0].trim() === '')) continue;
+
+    const v = col => {
+      const j = idx[col];
+      return j !== undefined && j !== -1 && row[j] ? row[j].trim() : '';
     };
-  } catch(e) { showToast('Camera denied', 'error'); }
-  updateDots(); lucide.createIcons();
+
+    const usn         = v('usn');
+    const name        = v('name');
+    const email       = v('email').toLowerCase();
+    const parentEmail = v('parent_email').toLowerCase();
+    const studentPhone = v('student_phone');
+    const parentPhone  = v('parent_phone');
+    const department   = v('department') || 'Engineering';
+    const semester     = v('semester');
+    const section      = v('section');
+
+    const errors = [];
+    if (!usn)   errors.push('USN is required');
+    if (!name)  errors.push('Name is required');
+    if (!email) errors.push('Email is required');
+    if (email && !emailRx.test(email))       errors.push(`Invalid student email: ${email}`);
+    if (parentEmail && !emailRx.test(parentEmail)) errors.push(`Invalid parent email: ${parentEmail}`);
+    if (studentPhone && !phoneRx.test(studentPhone)) errors.push(`Invalid student phone: ${studentPhone}`);
+    if (parentPhone  && !phoneRx.test(parentPhone))  errors.push(`Invalid parent phone: ${parentPhone}`);
+    if (usn   && seenUsn.has(usn))     errors.push(`Duplicate USN in CSV: ${usn}`);
+    if (email && seenEmail.has(email)) errors.push(`Duplicate Email in CSV: ${email}`);
+    if (usn)   seenUsn.add(usn);
+    if (email) seenEmail.add(email);
+
+    const dbDupUsn   = allStudents.find(s => s.studentId === usn || s.usn === usn);
+    const dbDupEmail = allStudents.find(s => s.email === email);
+    if (dbDupUsn)   errors.push(`USN already in database: ${usn}`);
+    if (dbDupEmail) errors.push(`Email already in database: ${email}`);
+
+    const isValid = !errors.length;
+    const data    = { usn, name, email, parent_email: parentEmail, student_phone: studentPhone, parent_phone: parentPhone, department, semester, section };
+    importRows.push({ rowNumber: i+1, isValid, errors, data });
+    if (!isValid) failedRows.push({ row: i+1, ...data, errors: errors.join('; ') });
+  }
+
+  renderImportPreview();
+}
+
+function renderImportPreview() {
+  const total   = importRows.length;
+  const valid   = importRows.filter(r => r.isValid).length;
+  const invalid = total - valid;
+
+  document.getElementById('import-summary-text').textContent = `Total Rows: ${total} | Valid: ${valid} | Invalid: ${invalid}`;
+  document.getElementById('download-failures-btn').style.display = invalid > 0 ? 'inline-flex' : 'none';
+  document.getElementById('import-btn').disabled = valid === 0;
+
+  document.getElementById('import-preview-body').innerHTML = importRows.map(r => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.02);">
+      <td style="padding:8px 12px;text-align:center;">${r.rowNumber}</td>
+      <td style="padding:8px 12px;font-family:monospace;">${r.data.usn||'-'}</td>
+      <td style="padding:8px 12px;font-weight:500;">${r.data.name||'-'}</td>
+      <td style="padding:8px 12px;"><span class="badge ${r.isValid?'badge-green':'badge-orange'}">${r.isValid?'Valid':'Failed'}</span></td>
+      <td style="padding:8px 12px;color:${r.isValid?'var(--text-muted)':'var(--neon-orange)'};font-size:11px;">${r.isValid?'Ready to import':r.errors.join(', ')}</td>
+    </tr>`).join('');
+
+  document.getElementById('import-report-section').style.display = 'block';
+  lucide.createIcons();
+}
+
+function downloadFailedRows() {
+  if (!failedRows.length) return;
+  const headers = 'row,usn,name,email,parent_email,student_phone,parent_phone,department,semester,section,validation_errors\n';
+  const rows    = failedRows.map(r => {
+    const esc = val => `"${(val||'').toString().replace(/"/g,'""')}"`;
+    return `${r.row},${esc(r.usn)},${esc(r.name)},${esc(r.email)},${esc(r.parent_email)},${esc(r.student_phone)},${esc(r.parent_phone)},${esc(r.department)},${esc(r.semester)},${esc(r.section)},${esc(r.errors)}`;
+  }).join('\n');
+  const blob = new Blob([headers+rows], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'failed_student_rows.csv');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+async function startBulkImport() {
+  const valid = importRows.filter(r => r.isValid).map(r => r.data);
+  if (!valid.length) return;
+
+  const progressContainer = document.getElementById('import-progress-container');
+  const progressText      = document.getElementById('import-progress-text');
+  const progressPct       = document.getElementById('import-progress-pct');
+  const progressBar       = document.getElementById('import-progress-bar');
+  const importBtn         = document.getElementById('import-btn');
+
+  importBtn.disabled = true;
+  progressContainer.style.display = 'block';
+
+  const total      = valid.length;
+  let   imported   = 0;
+  const CHUNK_SIZE = 200;
+
+  try {
+    for (let i = 0; i < total; i += CHUNK_SIZE) {
+      const chunk = valid.slice(i, i + CHUNK_SIZE);
+      const batch = db.batch();
+      chunk.forEach(record => {
+        const ref = db.collection('students').doc();
+        batch.set(ref, {
+          name: record.name, email: record.email,
+          parent_email: record.parent_email,
+          student_phone: record.student_phone, parent_phone: record.parent_phone,
+          dept: record.department, department: record.department,
+          semester: record.semester, section: record.section,
+          studentId: record.usn, usn: record.usn,
+          uid: null, descriptors: null, meanDescriptor: null,
+          registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+          addedBy: auth.currentUser.uid
+        });
+      });
+      progressText.textContent = `Importing ${imported + chunk.length} of ${total}...`;
+      await batch.commit();
+      imported += chunk.length;
+      const pct = Math.round((imported / total) * 100);
+      progressPct.textContent    = `${pct}%`;
+      progressBar.style.width    = `${pct}%`;
+    }
+    showToast(`Successfully imported ${total} students!`, 'success');
+    closeImport();
+    await loadStudents();
+  } catch(e) {
+    showToast(`Import failed: ${e.message}`, 'error');
+  } finally {
+    importBtn.disabled = false;
+    progressContainer.style.display = 'none';
+  }
 }
 
 lucide.createIcons();
