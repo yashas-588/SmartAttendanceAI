@@ -22,6 +22,34 @@ function requireAuth(requiredRole, rootPath = '/') {
     const data = snap.data();
     const userRole = (data.role === 'admin') ? 'teacher' : (data.role || 'student');
 
+    // Force password change for students if flagged
+    if (userRole === 'student' && data.mustChangePassword === true) {
+      // Under the Firebase reset email workflow, the student has already set their own secure
+      // password via the email link before logging in. Thus, we clear the flag automatically.
+      try {
+        await db.collection('users').doc(user.uid).update({
+          mustChangePassword: false,
+          passwordLastChangedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        // Try to update students collection accountStatus (may fail if rules restrict student writes)
+        try {
+          const studentSnap = await db.collection('students').where('uid', '==', user.uid).limit(1).get();
+          if (!studentSnap.empty) {
+            await studentSnap.docs[0].ref.update({ accountStatus: 'Active' });
+          }
+        } catch(_) {}
+        
+        data.mustChangePassword = false;
+      } catch(e) {
+        console.error("Failed to auto-clear mustChangePassword flag:", e);
+        const isChangePasswordPage = window.location.pathname.endsWith('change-password.html');
+        if (!isChangePasswordPage) {
+          window.location.replace(rootPath + 'student/change-password.html');
+          return;
+        }
+      }
+    }
+
     // Strict role enforcement — redirect to correct portal and STOP execution
     if (requiredRole && userRole !== requiredRole) {
       if (userRole === 'teacher') {
@@ -46,6 +74,7 @@ async function signOut() {
 
 // ─── LIVE LOCATION INTELLIGENCE ────────────────────────────────────────────
 let liveTrackerId = null;
+let geofenceInvalidated = false;
 function startLiveGeofencing(uid, cfg) {
   if (liveTrackerId) return;
   if (!navigator.geolocation) return;
@@ -54,23 +83,30 @@ function startLiveGeofencing(uid, cfg) {
   const allowedRadius = cfg.locationRadius || 10;
   
   liveTrackerId = navigator.geolocation.watchPosition(async pos => {
+    if (geofenceInvalidated) return;
     const dist = haversineDistance(
       pos.coords.latitude, pos.coords.longitude,
       cfg.location.lat, cfg.location.lon
     );
     if (dist > allowedRadius) {
       console.warn(`Geo-fence breached! ${dist}m away.`);
-      const dateStr = new Date().toISOString().split('T')[0];
-      // Match the docId format used when marking attendance
-      const docId = `${dateStr}_${uid}`;
       try {
-        const doc = await db.collection('attendance').doc(docId).get();
-        if (doc.exists && doc.data().status === 'Present') {
-          await db.collection('attendance').doc(docId).update({
-            status: 'Invalidated',
-            reason: `Left classroom (${Math.round(dist)}m away)`,
-            invalidatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
+        const idToken = await auth.currentUser.getIdToken();
+        const res = await fetch(getApiUrl('/api/invalidate-geofence'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            distance: dist
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          geofenceInvalidated = true;
           showToast('Attendance invalidated: You left the classroom.', 'error', 8000);
         }
       } catch(e) { console.warn('Geofence invalidation error:', e.message); }
@@ -177,12 +213,14 @@ function showToast(msg, type = 'info', duration = 5000) {
 // ─── SHARED SIDEBAR RENDERER ──────────────────────────────────────────────
 function renderAdminSidebar(activePage) {
   const items = [
-    { href: 'dashboard.html', icon: 'bar-chart-2',  label: 'Dashboard' },
-    { href: 'live.html',      icon: 'video',         label: 'Live Scan' },
-    { href: 'students.html',  icon: 'users',         label: 'Students' },
-    { href: 'manual.html',    icon: 'edit-3',        label: 'Manual' },
-    { href: 'reports.html',   icon: 'folder',        label: 'Reports' },
-    { href: 'settings.html',  icon: 'settings',      label: 'Settings' },
+    { href: 'dashboard.html',           icon: 'bar-chart-2',  label: 'Dashboard'  },
+    { href: 'session.html',             icon: 'clock',         label: 'Session'    },
+    { href: 'timetable.html',           icon: 'calendar',      label: 'Timetable'  },
+    { href: 'live.html',                icon: 'video',         label: 'Live Scan'  },
+    { href: 'students.html',            icon: 'users',         label: 'Students'   },
+    { href: 'manual.html',              icon: 'edit-3',        label: 'Manual'     },
+    { href: 'reports.html',             icon: 'folder',        label: 'Reports'    },
+    { href: 'settings.html',            icon: 'settings',      label: 'Settings'   },
   ];
   return `
     <aside class="sidebar">

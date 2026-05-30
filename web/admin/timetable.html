@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Timetable — Smart AI Attendance</title>
+  <meta name="description" content="Manage weekly class schedule, import via OCR, and generate scheduled sessions.">
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body{display:flex;min-height:100vh;}
+    .sidebar{width:var(--sidebar-width);background:rgba(2,8,23,0.97);border-right:1px solid var(--border-glass);display:flex;flex-direction:column;padding:24px 0;position:fixed;top:0;bottom:0;left:0;z-index:100;overflow-y:auto;}
+    .sidebar-logo{padding:0 20px;margin-bottom:36px;}
+    .sidebar-menu{flex:1;display:flex;flex-direction:column;gap:4px;padding:0 12px;}
+    .menu-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;color:var(--text-secondary);text-decoration:none;font-size:13px;font-weight:500;transition:var(--transition);}
+    .menu-item:hover,.menu-item.active{background:rgba(56,189,248,0.1);color:var(--neon-blue);}
+    .menu-icon{width:20px;height:20px;flex-shrink:0;}
+    .sidebar-footer{padding:16px 12px 0;border-top:1px solid var(--border-glass);}
+    .user-info h4{font-size:13px;font-weight:600;}.user-info p{font-size:11px;color:var(--text-muted);}
+    .main-content{flex:1;margin-left:var(--sidebar-width);display:flex;flex-direction:column;min-height:100vh;}
+    .topbar{height:64px;padding:0 32px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-glass);background:rgba(2,8,23,0.8);backdrop-filter:blur(20px);position:sticky;top:0;z-index:90;}
+    .content{padding:28px 32px;}
+
+    /* ── Tabs ── */
+    .tab-bar{display:flex;gap:0;margin-bottom:28px;background:rgba(255,255,255,0.03);border:1px solid var(--border-glass);border-radius:14px;padding:4px;width:fit-content;}
+    .tab-btn{padding:9px 22px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:7px;}
+    .tab-btn:hover{color:var(--text-primary);}
+    .tab-btn.active{background:rgba(56,189,248,0.15);color:var(--neon-blue);}
+    .tab-pane{display:none;}.tab-pane.active{display:block;}
+
+    /* ── Stats bar ── */
+    .stats-bar{display:flex;gap:14px;margin-bottom:24px;flex-wrap:wrap;}
+    .stat-chip{background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:10px;}
+    .stat-num{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;color:var(--neon-blue);}
+    .stat-lbl{font-size:11px;color:var(--text-muted);font-weight:600;}
+
+    /* ── Day tabs ── */
+    .day-tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
+    .day-tab{padding:7px 16px;border-radius:10px;border:1px solid var(--border-glass);color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;transition:var(--transition);background:transparent;}
+    .day-tab:hover{border-color:rgba(56,189,248,0.4);color:var(--neon-blue);}
+    .day-tab.active{background:rgba(56,189,248,0.12);border-color:var(--neon-blue);color:var(--neon-blue);}
+    .day-tab.today-tab{border-color:rgba(74,222,128,0.4);color:var(--neon-green);}
+    .day-tab.today-tab.active{background:rgba(74,222,128,0.08);}
+
+    /* ── Entry cards ── */
+    .schedule-panel{background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:20px;padding:24px;min-height:160px;}
+    .schedule-empty{text-align:center;padding:40px 20px;color:var(--text-muted);}
+    .entry-card{display:flex;align-items:center;gap:14px;padding:13px 16px;background:rgba(255,255,255,0.02);border:1px solid var(--border-glass);border-radius:14px;margin-bottom:8px;transition:var(--transition);}
+    .entry-card:hover{border-color:rgba(56,189,248,0.25);background:rgba(56,189,248,0.03);}
+    .entry-time{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;color:var(--neon-blue);min-width:88px;text-align:center;background:rgba(56,189,248,0.08);border-radius:8px;padding:6px 8px;line-height:1.5;}
+    .entry-body{flex:1;}
+    .entry-subject{font-size:14px;font-weight:700;margin-bottom:2px;}
+    .entry-meta{font-size:11px;color:var(--text-muted);display:flex;gap:10px;flex-wrap:wrap;}
+    .entry-actions{display:flex;gap:6px;align-items:center;}
+
+    /* ── Generate sessions panel ── */
+    .gen-panel{background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:20px;padding:24px;margin-top:24px;}
+    .gen-title{font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+    .date-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;}
+    .date-field{display:flex;flex-direction:column;gap:5px;}
+    .date-field label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;}
+    .date-field input{background:rgba(255,255,255,0.04);border:1px solid var(--border-glass);border-radius:10px;padding:9px 14px;color:var(--text-primary);font-size:13px;font-family:inherit;transition:var(--transition);}
+    .date-field input:focus{outline:none;border-color:var(--neon-blue);}
+
+    /* ── OCR Tab ── */
+    .ocr-drop{border:2px dashed var(--border-glass);border-radius:16px;padding:36px 24px;text-align:center;cursor:pointer;transition:var(--transition);background:rgba(255,255,255,0.01);}
+    .ocr-drop:hover,.ocr-drop.drag-over{border-color:var(--neon-purple);background:rgba(167,139,250,0.04);}
+    .ocr-progress-bar{height:4px;background:rgba(255,255,255,0.06);border-radius:4px;margin-top:12px;overflow:hidden;display:none;}
+    .ocr-progress-fill{height:100%;background:var(--gradient-primary);border-radius:4px;width:0%;transition:width .3s;}
+
+    /* ── OCR Preview Table ── */
+    .preview-panel{background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:20px;padding:20px;margin-top:20px;display:none;}
+    .preview-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+    .preview-table-wrap{overflow-x:auto;}
+    table.ocr-table{width:100%;border-collapse:collapse;font-size:12px;}
+    table.ocr-table th{padding:8px 10px;background:rgba(255,255,255,0.04);color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;text-align:left;white-space:nowrap;}
+    table.ocr-table td{padding:5px 6px;border-bottom:1px solid rgba(255,255,255,0.04);}
+    table.ocr-table input,table.ocr-table select{background:rgba(255,255,255,0.05);border:1px solid transparent;border-radius:6px;padding:5px 8px;color:var(--text-primary);font-size:12px;font-family:inherit;width:100%;min-width:70px;box-sizing:border-box;}
+    table.ocr-table input:focus,table.ocr-table select:focus{outline:none;border-color:var(--neon-blue);background:rgba(56,189,248,0.06);}
+    table.ocr-table select option{background:#0f172a;}
+    .row-del{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px 6px;border-radius:6px;transition:var(--transition);}
+    .row-del:hover{color:#f87171;background:rgba(239,68,68,0.1);}
+
+    /* ── Modal ── */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
+    .modal-overlay.active{display:flex;}
+    .modal-box{background:var(--bg-card);border:1px solid var(--border-glass);border-radius:20px;padding:28px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;}
+    .modal-title{font-size:17px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    .form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+    .form-group label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;}
+    .form-group input,.form-group select{background:rgba(255,255,255,0.04);border:1px solid var(--border-glass);border-radius:10px;padding:10px 14px;color:var(--text-primary);font-size:13px;font-family:inherit;width:100%;box-sizing:border-box;transition:var(--transition);}
+    .form-group input:focus,.form-group select:focus{outline:none;border-color:var(--neon-blue);background:rgba(56,189,248,0.05);}
+    .form-group select option{background:#0f172a;}
+    .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+
+    @media(max-width:768px){.sidebar{transform:translateX(-100%);}.main-content{margin-left:0;}.form-row{grid-template-columns:1fr;}.topbar,.content{padding-left:16px;padding-right:16px;}}
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="sidebar-wrap"></div>
+
+<div class="main-content">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <h1 style="font-size:18px;font-weight:700;">Timetable</h1>
+      <span id="today-badge" class="badge badge-green" style="font-size:11px;"></span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:12px;color:var(--neon-blue);"></span>
+      <button class="btn-primary" onclick="openAddModal()" style="padding:8px 16px;font-size:13px;">
+        <i data-lucide="plus"></i> Add Class
+      </button>
+    </div>
+  </header>
+
+  <div class="content">
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-schedule" onclick="switchTab('schedule')">
+        <i data-lucide="calendar" style="width:14px;height:14px;"></i> Weekly Schedule
+      </button>
+      <button class="tab-btn" id="tab-ocr" onclick="switchTab('ocr')">
+        <i data-lucide="scan" style="width:14px;height:14px;"></i> Upload &amp; OCR Import
+      </button>
+    </div>
+
+    <!-- ════════════ TAB 1: WEEKLY SCHEDULE ════════════ -->
+    <div class="tab-pane active" id="pane-schedule">
+
+      <!-- Stats -->
+      <div class="stats-bar">
+        <div class="stat-chip"><div><div class="stat-num" id="stat-total">—</div><div class="stat-lbl">Total Classes</div></div></div>
+        <div class="stat-chip"><div><div class="stat-num" id="stat-today">—</div><div class="stat-lbl">Today</div></div></div>
+        <div class="stat-chip"><div><div class="stat-num" id="stat-subjects">—</div><div class="stat-lbl">Subjects</div></div></div>
+      </div>
+
+      <!-- Day Tabs -->
+      <div class="day-tabs" id="day-tabs"></div>
+
+      <!-- Schedule Grid -->
+      <div class="schedule-panel" id="schedule-panel">
+        <div class="schedule-empty"><p style="margin:0;color:var(--text-muted);">Loading...</p></div>
+      </div>
+
+      <!-- Generate Scheduled Sessions Panel -->
+      <div class="gen-panel">
+        <div class="gen-title">
+          <i data-lucide="zap" style="width:16px;height:16px;color:var(--neon-green);"></i>
+          Generate Scheduled Sessions from Timetable
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px;">
+          Select a date range and the system will create one scheduled session per timetable entry per matching weekday.
+          Existing sessions are never duplicated.
+        </p>
+        <div class="date-row">
+          <div class="date-field">
+            <label>From</label>
+            <input type="date" id="gen-from">
+          </div>
+          <div class="date-field">
+            <label>To</label>
+            <input type="date" id="gen-to">
+          </div>
+          <button class="btn-primary" onclick="generateSessions()" id="gen-btn" style="padding:9px 20px;font-size:13px;white-space:nowrap;">
+            <i data-lucide="zap"></i> Generate Sessions
+          </button>
+        </div>
+        <div id="gen-result" style="margin-top:14px;font-size:13px;display:none;"></div>
+      </div>
+    </div>
+
+    <!-- ════════════ TAB 2: OCR IMPORT ════════════ -->
+    <div class="tab-pane" id="pane-ocr">
+      <div style="max-width:860px;">
+        <div style="margin-bottom:20px;">
+          <h2 style="font-size:15px;font-weight:700;margin:0 0 6px;">Import Timetable via Image</h2>
+          <p style="font-size:12px;color:var(--text-muted);margin:0;">
+            Upload a screenshot or photo of your timetable. OCR will extract the text.
+            You can then edit each row before importing to your timetable.
+          </p>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="ocr-drop" id="ocr-drop"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleOcrDrop(event)"
+             onclick="document.getElementById('ocr-file').click()">
+          <input type="file" id="ocr-file" accept="image/*" style="display:none" onchange="handleOcrFile(this.files[0])">
+          <i data-lucide="upload-cloud" style="width:32px;height:32px;color:var(--text-muted);display:block;margin:0 auto 10px;"></i>
+          <div style="font-size:13px;font-weight:600;color:var(--text-secondary);">Drop timetable image here or click to upload</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">PNG, JPG, JPEG · Max 8MB</div>
+        </div>
+        <div class="ocr-progress-bar" id="ocr-progress-wrap">
+          <div class="ocr-progress-fill" id="ocr-progress-fill"></div>
+        </div>
+        <div id="ocr-status" style="font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center;min-height:18px;"></div>
+
+        <!-- Preview image + editable table -->
+        <div class="preview-panel" id="preview-panel">
+          <div class="preview-header">
+            <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="table" style="width:15px;height:15px;color:var(--neon-blue);"></i>
+              Extracted Entries — verify &amp; edit before importing
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-ghost btn-sm" onclick="addOcrRow()"><i data-lucide="plus"></i> Add Row</button>
+              <button class="btn-primary" onclick="importOcrRows()" id="import-btn" style="font-size:12px;padding:7px 16px;">
+                <i data-lucide="download"></i> Import to Timetable
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <img id="ocr-img" src="" alt="" style="max-width:100%;border-radius:10px;max-height:220px;object-fit:contain;display:none;">
+          </div>
+
+          <div class="preview-table-wrap">
+            <table class="ocr-table" id="ocr-table">
+              <thead><tr>
+                <th>Day</th><th>From</th><th>To</th><th>Subject</th>
+                <th>Class / Section</th><th>Room</th><th></th>
+              </tr></thead>
+              <tbody id="ocr-rows"></tbody>
+            </table>
+          </div>
+
+          <p style="font-size:11px;color:var(--text-muted);margin:12px 0 0;">
+            Only rows with Day, From, To, Subject, and Class filled will be imported.
+            Blank rows are skipped silently.
+          </p>
+        </div>
+
+        <!-- Raw OCR text collapsible -->
+        <details id="raw-details" style="margin-top:16px;display:none;">
+          <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;user-select:none;padding:8px 0;">
+            View raw OCR text
+          </summary>
+          <div id="ocr-raw" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;font-size:11px;
+            font-family:monospace;color:var(--text-secondary);max-height:200px;overflow-y:auto;
+            white-space:pre-wrap;margin-top:8px;"></div>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add/Edit Entry Modal ── -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal-box">
+    <div class="modal-title">
+      <i data-lucide="calendar-plus" style="width:18px;height:18px;color:var(--neon-blue);"></i>
+      <span id="modal-title-text">Add Class to Timetable</span>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Day *</label>
+        <select id="entry-day">
+          <option value="">Select day...</option>
+          <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+          <option>Thursday</option><option>Friday</option><option>Saturday</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Room</label>
+        <input type="text" id="entry-room" placeholder="e.g. Room 201">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Start Time *</label><input type="time" id="entry-start"></div>
+      <div class="form-group"><label>End Time *</label><input type="time" id="entry-end"></div>
+    </div>
+    <div class="form-group"><label>Subject *</label><input type="text" id="entry-subject" placeholder="e.g. Machine Learning"></div>
+    <div class="form-group"><label>Class / Section *</label><input type="text" id="entry-class" placeholder="e.g. CS-A Sem 5"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Department</label><input type="text" id="entry-dept" placeholder="e.g. CSE"></div>
+      <div class="form-group"><label>Semester</label><input type="text" id="entry-sem" placeholder="e.g. 5"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeEntryModal()">Cancel</button>
+      <button class="btn-primary" id="entry-save-btn" onclick="saveEntry()">
+        <i data-lucide="save"></i> Save Class
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+requireAuth('teacher', '../');
+
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const TODAY_NAME = new Date().toLocaleDateString('en-US',{weekday:'long'});
+let teacherUid = null;
+let allEntries = [];
+let activeDay  = 'All';
+let editingId  = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('authReady', async e => {
+  teacherUid = e.detail.uid;
+  document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('timetable.html');
+  lucide.createIcons();
+  document.getElementById('today-badge').textContent = TODAY_NAME;
+  setInterval(() => {
+    const el = document.getElementById('clock');
+    if (el) el.textContent = new Date().toLocaleTimeString();
+  }, 1000);
+  // Default date range: this week Mon–Sat
+  const now = new Date();
+  const mon = new Date(now); mon.setDate(now.getDate() - (now.getDay() || 7) + 1);
+  const sat = new Date(mon); sat.setDate(mon.getDate() + 5);
+  document.getElementById('gen-from').value = mon.toISOString().split('T')[0];
+  document.getElementById('gen-to').value   = sat.toISOString().split('T')[0];
+  buildDayTabs();
+  await loadTimetable();
+});
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['schedule','ocr'].forEach(t => {
+    document.getElementById(`pane-${t}`).classList.toggle('active', t===tab);
+    document.getElementById(`tab-${t}`).classList.toggle('active',  t===tab);
+  });
+  lucide.createIcons();
+}
+
+// ── Day tabs ──────────────────────────────────────────────────────────────
+function buildDayTabs() {
+  const c = document.getElementById('day-tabs');
+  c.innerHTML = ['All',...DAYS].map(d => {
+    const isToday = d === TODAY_NAME;
+    return `<button class="day-tab ${isToday?'today-tab':''} ${d==='All'?'active':''}"
+      onclick="selectDay('${d}',this)">${d}${isToday?' · Today':''}</button>`;
+  }).join('');
+}
+function selectDay(day, el) {
+  document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  activeDay = day;
+  renderSchedule();
+}
+
+// ── Load timetable from backend ───────────────────────────────────────────
+async function loadTimetable() {
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(getApiUrl('/api/timetable'), {headers:{'Authorization':`Bearer ${idToken}`}});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    allEntries = await res.json();
+    updateStats(); renderSchedule();
+  } catch(e) {
+    console.warn('Timetable load failed:', e.message);
+    showToast('Cannot load timetable — is the Flask server running?', 'error');
+    document.getElementById('schedule-panel').innerHTML =
+      '<div class="schedule-empty"><p style="margin:0;color:var(--text-muted);">Backend not reachable.</p></div>';
+  }
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent    = allEntries.length;
+  document.getElementById('stat-today').textContent    = allEntries.filter(e=>e.day===TODAY_NAME).length;
+  document.getElementById('stat-subjects').textContent = new Set(allEntries.map(e=>e.subject)).size;
+}
+
+// ── Render schedule ───────────────────────────────────────────────────────
+function renderSchedule() {
+  const panel = document.getElementById('schedule-panel');
+  const list  = activeDay==='All' ? allEntries : allEntries.filter(e=>e.day===activeDay);
+  if (!list.length) {
+    panel.innerHTML = `<div class="schedule-empty">
+      <i data-lucide="calendar-x" style="width:32px;height:32px;color:var(--text-muted);display:block;margin:0 auto 10px;"></i>
+      <p style="margin:0;font-size:14px;font-weight:600;">No classes${activeDay!=='All'?' for '+activeDay:''}</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--text-muted);">Click <strong>Add Class</strong> to build your timetable.</p>
+    </div>`;
+    lucide.createIcons(); return;
+  }
+  if (activeDay==='All') {
+    let html='';
+    for (const day of DAYS) {
+      const de = list.filter(e=>e.day===day);
+      if (!de.length) continue;
+      html += `<div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);
+          margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+          <span style="height:1px;flex:1;background:var(--border-glass);"></span>
+          ${day}${day===TODAY_NAME?` <span class="badge badge-green" style="font-size:10px;">Today</span>`:''}
+          <span style="height:1px;flex:1;background:var(--border-glass);"></span>
+        </div>
+        ${de.map(renderCard).join('')}
+      </div>`;
+    }
+    panel.innerHTML = html;
+  } else {
+    panel.innerHTML = list.map(renderCard).join('');
+  }
+  lucide.createIcons();
+}
+
+function renderCard(e) {
+  return `<div class="entry-card">
+    <div class="entry-time">${e.start_time}<br><span style="font-size:9px;opacity:.6;">to</span><br>${e.end_time}</div>
+    <div class="entry-body">
+      <div class="entry-subject">${e.subject}</div>
+      <div class="entry-meta">
+        <span><i data-lucide="users" style="width:11px;height:11px;"></i> ${e.class_id}</span>
+        ${e.room?`<span><i data-lucide="map-pin" style="width:11px;height:11px;"></i> ${e.room}</span>`:''}
+        ${e.department?`<span><i data-lucide="building" style="width:11px;height:11px;"></i> ${e.department}</span>`:''}
+      </div>
+    </div>
+    <div class="entry-actions">
+      <button class="btn-ghost btn-sm" onclick="openEditModal('${e.id}')" title="Edit"><i data-lucide="edit-3"></i></button>
+      <button class="btn-danger btn-sm" onclick="deleteEntry('${e.id}','${e.subject}')" title="Delete"><i data-lucide="trash-2"></i></button>
+    </div>
+  </div>`;
+}
+
+// ── Add/Edit modal ────────────────────────────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modal-title-text').textContent = 'Add Class to Timetable';
+  document.getElementById('entry-save-btn').innerHTML = '<i data-lucide="save"></i> Save Class';
+  ['entry-day','entry-room','entry-start','entry-end','entry-subject','entry-class','entry-dept','entry-sem']
+    .forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('entry-day').value = TODAY_NAME;
+  document.getElementById('entryModal').classList.add('active');
+  lucide.createIcons();
+}
+function openEditModal(id) {
+  const entry = allEntries.find(e=>e.id===id); if (!entry) return;
+  editingId = id;
+  document.getElementById('modal-title-text').textContent = 'Edit Class';
+  document.getElementById('entry-save-btn').innerHTML = '<i data-lucide="save"></i> Update Class';
+  document.getElementById('entry-day').value     = entry.day      || '';
+  document.getElementById('entry-room').value    = entry.room     || '';
+  document.getElementById('entry-start').value   = entry.start_time || '';
+  document.getElementById('entry-end').value     = entry.end_time   || '';
+  document.getElementById('entry-subject').value = entry.subject  || '';
+  document.getElementById('entry-class').value   = entry.class_id || '';
+  document.getElementById('entry-dept').value    = entry.department || '';
+  document.getElementById('entry-sem').value     = entry.semester   || '';
+  document.getElementById('entryModal').classList.add('active');
+  lucide.createIcons();
+}
+function closeEntryModal() { document.getElementById('entryModal').classList.remove('active'); editingId=null; }
+document.getElementById('entryModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEntryModal();});
+
+async function saveEntry() {
+  const day=document.getElementById('entry-day').value,
+        start=document.getElementById('entry-start').value,
+        end=document.getElementById('entry-end').value,
+        subject=document.getElementById('entry-subject').value.trim(),
+        classId=document.getElementById('entry-class').value.trim();
+  if (!day)   {showToast('Select a day','error');return;}
+  if (!start) {showToast('Enter start time','error');return;}
+  if (!end)   {showToast('Enter end time','error');return;}
+  if (!subject){showToast('Enter a subject name','error');return;}
+  if (!classId){showToast('Enter class / section','error');return;}
+  if (start>=end){showToast('End time must be after start time','error');return;}
+  const btn=document.getElementById('entry-save-btn');
+  btn.disabled=true; btn.innerHTML='<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></div> Saving...';
+  const payload={day,start_time:start,end_time:end,subject,class_id:classId,
+    room:document.getElementById('entry-room').value.trim(),
+    department:document.getElementById('entry-dept').value.trim(),
+    semester:document.getElementById('entry-sem').value.trim()};
+  try {
+    const idToken=await auth.currentUser.getIdToken();
+    const url=editingId?getApiUrl(`/api/timetable/${editingId}`):getApiUrl('/api/timetable');
+    const res=await fetch(url,{method:editingId?'PUT':'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${idToken}`},
+      body:JSON.stringify(payload)});
+    const data=await res.json();
+    if (!res.ok) throw new Error(data.error||'Save failed');
+    showToast(editingId?'Class updated':`${subject} added to ${day}`,'success');
+    closeEntryModal(); await loadTimetable();
+  } catch(e){showToast('Error: '+e.message,'error');}
+  btn.disabled=false; btn.innerHTML=`<i data-lucide="save"></i> ${editingId?'Update':'Save'} Class`;
+  lucide.createIcons();
+}
+
+async function deleteEntry(id, subject) {
+  if (!confirm(`Remove "${subject}" from the timetable?`)) return;
+  try {
+    const idToken=await auth.currentUser.getIdToken();
+    const res=await fetch(getApiUrl(`/api/timetable/${id}`),{method:'DELETE',headers:{'Authorization':`Bearer ${idToken}`}});
+    const data=await res.json();
+    if (!res.ok) throw new Error(data.error||'Delete failed');
+    showToast(`${subject} removed`,'success'); await loadTimetable();
+  } catch(e){showToast('Error: '+e.message,'error');}
+}
+
+// ── Generate Scheduled Sessions ───────────────────────────────────────────
+async function generateSessions() {
+  const from = document.getElementById('gen-from').value;
+  const to   = document.getElementById('gen-to').value;
+  if (!from||!to){showToast('Select a date range','error');return;}
+  if (!allEntries.length){showToast('No timetable entries to generate from','error');return;}
+  const btn=document.getElementById('gen-btn');
+  btn.disabled=true; btn.innerHTML='<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></div> Generating...';
+  const result=document.getElementById('gen-result');
+  result.style.display='none';
+  try {
+    const idToken=await auth.currentUser.getIdToken();
+    const res=await fetch(getApiUrl('/api/scheduled-sessions/generate'),{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${idToken}`},
+      body:JSON.stringify({entries:allEntries,week_start:from,week_end:to})
+    });
+    const data=await res.json();
+    if (!res.ok) throw new Error(data.error||'Generate failed');
+    const color = data.created>0?'var(--neon-green)':'var(--text-muted)';
+    result.innerHTML=`<span style="color:${color};font-weight:700;">✓ ${data.created} sessions created</span>
+      ${data.skipped?` · <span style="color:var(--text-muted);">${data.skipped} skipped (already exist)</span>`:''}
+      ${data.errors?.length?`<div style="margin-top:8px;font-size:11px;color:#f87171;">
+        ${data.errors.map(e=>`<div>⚠ ${e}</div>`).join('')}</div>`:''}
+      <div style="margin-top:8px;font-size:11px;color:var(--text-muted);">
+        View and manage in <a href="session.html" style="color:var(--neon-blue);">Session page</a>.
+      </div>`;
+    result.style.display='block';
+    showToast(`${data.created} session${data.created!==1?'s':''} generated`,'success');
+  } catch(e){showToast('Error: '+e.message,'error');}
+  btn.disabled=false; btn.innerHTML='<i data-lucide="zap"></i> Generate Sessions';
+  lucide.createIcons();
+}
+
+// ── OCR ───────────────────────────────────────────────────────────────────
+function handleOcrDrop(e) {
+  e.preventDefault(); document.getElementById('ocr-drop').classList.remove('drag-over');
+  const file=e.dataTransfer.files[0]; if(file) handleOcrFile(file);
+}
+
+async function handleOcrFile(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {showToast('Only image files (PNG/JPG) are supported','error');return;}
+  if (file.size>8*1024*1024) {showToast('Image is too large (max 8 MB)','error');return;}
+
+  // Preview image
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=document.getElementById('ocr-img');
+    img.src=ev.target.result; img.style.display='block';
+  };
+  reader.readAsDataURL(file);
+
+  // Show progress UI
+  const wrap=document.getElementById('ocr-progress-wrap');
+  const fill=document.getElementById('ocr-progress-fill');
+  const status=document.getElementById('ocr-status');
+  wrap.style.display='block'; fill.style.width='0%';
+  status.textContent='Loading OCR engine...';
+
+  try {
+    if (typeof Tesseract==='undefined') {
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+        s.onload=res; s.onerror=rej; document.head.appendChild(s);
+      });
+    }
+    status.textContent='Initialising OCR...'; fill.style.width='10%';
+    const result=await Tesseract.recognize(file,'eng',{
+      logger: m=>{
+        if (m.status==='recognizing text'){
+          const pct=Math.round(m.progress*80)+10;
+          fill.style.width=pct+'%';
+          status.textContent=`Recognising text… ${pct}%`;
+        }
+      }
+    });
+    fill.style.width='100%';
+    const rawText=(result.data.text||'').trim();
+    document.getElementById('ocr-raw').textContent=rawText||'(No text detected)';
+    document.getElementById('raw-details').style.display='block';
+    status.textContent=rawText?'OCR complete — review and edit the table below':'No text detected';
+
+    const rows=parseOcr(rawText);
+    buildOcrTable(rows);
+    document.getElementById('preview-panel').style.display='block';
+    if (!rows.length) showToast('OCR found no time entries. Try a clearer image or add rows manually.','info',8000);
+    else showToast(`${rows.length} class${rows.length!==1?'es':''} extracted — review and import`,'success');
+  } catch(e) {
+    status.textContent='OCR failed: '+e.message;
+    fill.style.width='0%'; wrap.style.display='none';
+    showToast('OCR failed: '+e.message,'error');
+  }
+}
+
+// ── OCR Parser ─────────────────────────────────────────────────────────────
+function parseOcr(text) {
+  const rows=[];
+  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l.length>2);
+  // Matches: "09:00-10:00", "9:00 to 10:00", "9.00-10.00", "09:00 – 10:00"
+  const rangeRx=/(\d{1,2})[:.h](\d{2})\s*(?:[AaPp][Mm])?\s*[-–—to]+\s*(\d{1,2})[:.h](\d{2})\s*(?:[AaPp][Mm])?/i;
+  const dayRx=/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat)\b/i;
+  const dayMap={mon:'Monday',tue:'Tuesday',wed:'Wednesday',thu:'Thursday',fri:'Friday',sat:'Saturday',
+                monday:'Monday',tuesday:'Tuesday',wednesday:'Wednesday',thursday:'Thursday',
+                friday:'Friday',saturday:'Saturday',sunday:'Sunday'};
+  const pad=n=>String(parseInt(n)).padStart(2,'0');
+
+  for (let i=0;i<lines.length;i++) {
+    const line=lines[i];
+    const m=line.match(rangeRx);
+    if (!m) continue;
+    const start=`${pad(m[1])}:${m[2]}`, end=`${pad(m[3])}:${m[4]}`;
+    if (start>=end) continue; // skip bad ranges
+    // Try to find day in context
+    const ctx=[lines[i-2]||'',lines[i-1]||'',line,lines[i+1]||'',lines[i+2]||''].join(' ');
+    const dm=ctx.match(dayRx);
+    const day=dm?dayMap[dm[1].toLowerCase()]:'';
+    // Extract remaining text as subject / class / room candidates
+    const cleaned=line.replace(rangeRx,'').replace(/[|\\\/]/g,' ').replace(/\s+/g,' ').trim();
+    const parts=cleaned.split(/\s{2,}|\t/).map(p=>p.trim()).filter(p=>p.length>1);
+    rows.push({day,start_time:start,end_time:end,subject:parts[0]||'',class_id:parts[1]||'',room:parts[2]||''});
+  }
+  return rows;
+}
+
+// ── OCR editable table ─────────────────────────────────────────────────────
+function buildOcrTable(rows) {
+  const tbody=document.getElementById('ocr-rows');
+  tbody.innerHTML=rows.map((_,i)=>'').join(''); // clear first
+  rows.forEach(r=>appendOcrRow(r));
+  if (!rows.length) appendOcrRow({});
+  lucide.createIcons();
+}
+
+function appendOcrRow(r={}) {
+  const tbody=document.getElementById('ocr-rows');
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td><select class="ocr-day">
+      <option value="">—</option>
+      ${DAYS.map(d=>`<option ${r.day===d?'selected':''}>${d}</option>`).join('')}
+    </select></td>
+    <td><input type="time" class="ocr-start" value="${r.start_time||''}"></td>
+    <td><input type="time" class="ocr-end"   value="${r.end_time||''}"></td>
+    <td><input type="text" class="ocr-subject" value="${r.subject||''}" placeholder="Subject"></td>
+    <td><input type="text" class="ocr-class"   value="${r.class_id||''}" placeholder="CS-A Sem 5"></td>
+    <td><input type="text" class="ocr-room"    value="${r.room||''}" placeholder="Room 201"></td>
+    <td><button class="row-del" onclick="this.closest('tr').remove()" title="Remove row">
+      <i data-lucide="x" style="width:13px;height:13px;"></i></button></td>`;
+  tbody.appendChild(tr);
+  lucide.createIcons();
+}
+
+function addOcrRow() { appendOcrRow({}); }
+
+async function importOcrRows() {
+  const rows=[];
+  document.querySelectorAll('#ocr-rows tr').forEach(tr=>{
+    const day    =tr.querySelector('.ocr-day').value;
+    const start  =tr.querySelector('.ocr-start').value;
+    const end    =tr.querySelector('.ocr-end').value;
+    const subject=(tr.querySelector('.ocr-subject').value||'').trim();
+    const classId=(tr.querySelector('.ocr-class').value||'').trim();
+    const room   =(tr.querySelector('.ocr-room').value||'').trim();
+    if (!day||!start||!end||!subject||!classId) return; // skip incomplete
+    rows.push({day,start_time:start,end_time:end,subject,class_id:classId,room});
+  });
+  if (!rows.length){showToast('No complete rows to import. Fill Day, From, To, Subject, and Class.','error');return;}
+  const btn=document.getElementById('import-btn');
+  btn.disabled=true; btn.innerHTML='<div class="spinner" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></div> Importing...';
+  let done=0,failed=0;
+  try {
+    const idToken=await auth.currentUser.getIdToken();
+    for (const row of rows) {
+      try {
+        const res=await fetch(getApiUrl('/api/timetable'),{
+          method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${idToken}`},
+          body:JSON.stringify(row)
+        });
+        if (res.ok) done++; else failed++;
+      } catch{failed++;}
+    }
+    showToast(`Imported ${done} class${done!==1?'es':''}${failed?` (${failed} failed)`:'`'}`, done>0?'success':'error',6000);
+    if (done>0){await loadTimetable(); switchTab('schedule');}
+  } catch(e){showToast('Import error: '+e.message,'error');}
+  btn.disabled=false; btn.innerHTML='<i data-lucide="download"></i> Import to Timetable';
+  lucide.createIcons();
+}
+
+lucide.createIcons();
+</script>
+</body>
+</html>

@@ -10,3 +10,14 @@ const firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db   = firebase.firestore();
+
+// Central environment-aware API URL generator (Priority 1)
+function getApiUrl(path) {
+  // Override via global config (e.g., set window.BACKEND_URL before this script loads)
+  if (window.BACKEND_URL) return window.BACKEND_URL + path;
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return `http://localhost:5005${path}`;
+  }
+  // Production: uses firebase.json /api/** → Cloud Run rewrite
+  return path;
+}

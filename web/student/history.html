@@ -121,12 +121,42 @@ document.addEventListener('authReady', async e => {
   const u = e.detail;
   document.getElementById('student-name').textContent = u.name || 'My Attendance';
   document.getElementById('student-id').textContent = u.email;
+
+  // Self-healing activation status trigger & link external UID
+  try {
+    let actSnap = await db.collection('students').where('uid', '==', u.uid).limit(1).get();
+    if (actSnap.empty && u.email) {
+      const emailSnap = await db.collection('students').where('email', '==', u.email.toLowerCase()).limit(1).get();
+      if (!emailSnap.empty) {
+        const doc = emailSnap.docs[0];
+        const data = doc.data();
+        const hasFace = !!data.descriptors;
+        const targetStatus = hasFace ? 'Active' : 'Face Setup Needed';
+        await doc.ref.update({
+          uid: u.uid,
+          accountStatus: targetStatus
+        });
+        console.log(`Student record linked to UID: ${u.uid} with status: ${targetStatus}`);
+        actSnap = await db.collection('students').where('uid', '==', u.uid).limit(1).get();
+      }
+    }
+    actSnap.forEach(async doc => {
+      const data = doc.data();
+      const hasFace = !!data.descriptors;
+      const expectedStatus = hasFace ? 'Active' : 'Face Setup Needed';
+      if (data.accountStatus !== expectedStatus) {
+        await doc.ref.update({ accountStatus: expectedStatus });
+        console.log(`Student accountStatus self-healed to ${expectedStatus}.`);
+      }
+    });
+  } catch(err) { console.warn('Status sync notice:', err.message); }
+
   await loadRecords(u.uid);
 });
 
 async function loadRecords(uid) {
   const snap = await db.collection('attendance')
-    .where('studentId', '==', uid)
+    .where('student_uid', '==', uid)
     .get();
 
   allRecords = [];

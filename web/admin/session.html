@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session Control — Smart AI Attendance</title>
+  <link rel="stylesheet" href="../style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
+    .sidebar-logo { padding:0 20px; margin-bottom:36px; }
+    .sidebar-menu { flex:1; display:flex; flex-direction:column; gap:4px; padding:0 12px; }
+    .menu-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:10px; color:var(--text-secondary); text-decoration:none; font-size:13px; font-weight:500; transition:var(--transition); }
+    .menu-item:hover,.menu-item.active { background:rgba(56,189,248,0.1); color:var(--neon-blue); }
+    .menu-icon { width:20px; height:20px; flex-shrink:0; }
+    .sidebar-footer { padding:16px 12px 0; border-top:1px solid var(--border-glass); }
+    .user-profile { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .user-info h4 { font-size:13px; font-weight:600; }
+    .user-info p { font-size:11px; color:var(--text-muted); }
+    .main-content { flex:1; margin-left:var(--sidebar-width); display:flex; flex-direction:column; min-height:100vh; }
+    .topbar { height:64px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-glass); background:rgba(2,8,23,0.8); backdrop-filter:blur(20px); position:sticky; top:0; z-index:90; }
+    .content { padding:28px 32px; max-width:900px; }
+
+    /* Session cards */
+    .session-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+    .sess-panel { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:20px; padding:24px; }
+    .sess-panel.active-panel { border-color:rgba(74,222,128,0.4); background:rgba(74,222,128,0.04); }
+    .sess-panel.inactive-panel { border-color:rgba(56,189,248,0.2); }
+    .panel-title { font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; margin-bottom:20px; }
+
+    /* Timer ring */
+    .timer-wrap { display:flex; flex-direction:column; align-items:center; margin:12px 0 20px; }
+    .timer-ring { position:relative; width:140px; height:140px; }
+    .timer-ring svg { transform:rotate(-90deg); }
+    .timer-ring circle { fill:none; stroke-width:8; }
+    .ring-bg { stroke:rgba(255,255,255,0.06); }
+    .ring-fill { stroke:var(--neon-green); stroke-linecap:round; transition:stroke-dashoffset 1s linear; }
+    .ring-fill.warn { stroke:#fbbf24; }
+    .timer-text { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .timer-num { font-family:'Orbitron',sans-serif; font-size:26px; font-weight:700; color:var(--neon-green); line-height:1; }
+    .timer-num.warn { color:#fbbf24; }
+    .timer-lbl { font-size:10px; color:var(--text-muted); margin-top:4px; letter-spacing:1px; }
+
+    /* Session info rows */
+    .sess-info-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:13px; }
+    .sess-info-row:last-child { border-bottom:none; }
+    .sess-info-key { color:var(--text-muted); font-weight:500; }
+    .sess-info-val { font-weight:600; }
+
+    /* Attendance live list */
+    .att-list { max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+    .att-item { display:flex; align-items:center; gap:12px; padding:10px 12px; background:rgba(74,222,128,0.06); border:1px solid rgba(74,222,128,0.15); border-radius:10px; animation:fadeInUp 0.3s ease; }
+    .att-avatar { width:32px; height:32px; border-radius:8px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
+    .att-name { font-size:13px; font-weight:600; flex:1; }
+    .att-time { font-size:11px; color:var(--text-muted); font-family:'Orbitron',sans-serif; }
+    .att-conf { font-size:11px; color:var(--neon-green); }
+    .empty-state { text-align:center; padding:40px 20px; color:var(--text-muted); }
+
+    /* Duration pills */
+    .dur-pills { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+    .dur-pill { padding:7px 16px; border-radius:20px; border:1px solid var(--border-glass); color:var(--text-muted); font-size:12px; font-weight:600; cursor:pointer; transition:var(--transition); }
+    .dur-pill.sel { background:rgba(56,189,248,0.15); border-color:var(--neon-blue); color:var(--neon-blue); }
+
+    /* History */
+    .history-panel { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:20px; padding:24px; margin-top:20px; }
+    .hist-item { display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .hist-item:last-child { border-bottom:none; }
+    .hist-icon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .hist-meta { flex:1; }
+    .hist-title { font-size:13px; font-weight:600; }
+    .hist-sub { font-size:11px; color:var(--text-muted); margin-top:2px; }
+    .hist-count { font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700; color:var(--neon-blue); }
+
+    @media(max-width:768px) { .sidebar{transform:translateX(-100%);} .main-content{margin-left:0;} .session-grid{grid-template-columns:1fr;} .topbar,.content{padding-left:16px;padding-right:16px;} }
+
+    /* ── Scheduled sessions panel ── */
+    .upcoming-panel { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:20px; padding:24px; margin-bottom:20px; }
+    .upcoming-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
+    .upcoming-title { font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; }
+    .status-chips { display:flex; gap:8px; flex-wrap:wrap; }
+    .status-chip { font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.2px; }
+    .chip-scheduled { background:rgba(56,189,248,0.1); color:var(--neon-blue); }
+    .chip-active     { background:rgba(74,222,128,0.1); color:var(--neon-green); }
+    .chip-completed  { background:rgba(167,139,250,0.1); color:var(--neon-purple); }
+    .chip-expired    { background:rgba(251,146,60,0.08); color:var(--neon-orange); }
+    .chip-cancelled  { background:rgba(255,255,255,0.04); color:var(--text-muted); }
+    .ss-item { display:flex; align-items:center; gap:12px; padding:12px 14px; background:rgba(255,255,255,0.02); border:1px solid var(--border-glass); border-radius:12px; margin-bottom:8px; transition:all .2s; }
+    .ss-item.ss-active  { border-color:rgba(74,222,128,0.3);  background:rgba(74,222,128,0.03); }
+    .ss-item.ss-expired { border-color:rgba(251,146,60,0.2);  background:rgba(251,146,60,0.02); }
+    .ss-time { font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; color:var(--neon-blue); min-width:86px; text-align:center; background:rgba(56,189,248,0.08); border-radius:7px; padding:5px 8px; line-height:1.6; }
+    .ss-body { flex:1; min-width:0; }
+    .ss-subj { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ss-meta { font-size:11px; color:var(--text-muted); margin-top:2px; }
+    .ss-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+    .ss-status { font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+    .upcoming-empty { text-align:center; padding:28px 20px; color:var(--text-muted); font-size:13px; }
+
+    /* ── Extra Class modal ── */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
+    .modal-overlay.active { display:flex; }
+    .modal-box { background:var(--bg-card); border:1px solid var(--border-glass); border-radius:20px; padding:28px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+    .modal-title { font-size:17px; font-weight:700; margin-bottom:20px; display:flex; align-items:center; gap:8px; }
+    .modal-form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .modal-group { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+    .modal-group label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
+    .modal-group input, .modal-group select { background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:10px; padding:10px 14px; color:var(--text-primary); font-size:13px; font-family:inherit; width:100%; box-sizing:border-box; transition:var(--transition); }
+    .modal-group input:focus, .modal-group select:focus { outline:none; border-color:var(--neon-blue); background:rgba(56,189,248,0.05); }
+    .modal-group select option { background:#0f172a; }
+    .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="../js/auth-guard.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="sidebar-wrap"></div>
+
+<div class="main-content">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <h1 style="font-size:18px;font-weight:700;">Session Control</h1>
+      <span id="session-badge" style="display:none;" class="badge badge-green">
+        <span class="status-dot online"></span> Session Active
+      </span>
+    </div>
+    <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
+  </header>
+
+  <div class="content">
+    <div class="session-grid">
+
+      <!-- LEFT: Session Control Panel -->
+      <div class="sess-panel" id="ctrl-panel">
+
+        <!-- No session state -->
+        <div id="no-session-ui">
+          <div class="panel-title"><i data-lucide="play-circle" style="color:var(--neon-blue);width:18px;height:18px;"></i> Start New Session</div>
+          <div class="form-group">
+            <label>Class / Section</label>
+            <input type="text" id="inp-class" placeholder="e.g. CS-A Sem5" value="">
+          </div>
+          <div class="form-group">
+            <label>Subject</label>
+            <input type="text" id="inp-subject" placeholder="e.g. Machine Learning">
+          </div>
+          <div class="form-group">
+            <label>Duration</label>
+            <div class="dur-pills">
+              <div class="dur-pill" data-min="5" onclick="selDur(this)">5 min</div>
+              <div class="dur-pill sel" data-min="10" onclick="selDur(this)">10 min</div>
+              <div class="dur-pill" data-min="15" onclick="selDur(this)">15 min</div>
+              <div class="dur-pill" data-min="30" onclick="selDur(this)">30 min</div>
+              <div class="dur-pill" data-min="60" onclick="selDur(this)">60 min</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="use-gps" style="width:auto;margin-right:6px;" checked>
+              Attach current classroom GPS to session
+            </label>
+            <div id="gps-status" style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+              GPS will be captured on session start
+            </div>
+          </div>
+          <button class="btn-primary" id="start-btn" onclick="startSession()" style="width:100%;padding:14px;font-size:15px;border-radius:14px;">
+            <i data-lucide="play"></i> Start Attendance Session
+          </button>
+        </div>
+
+        <!-- Active session state -->
+        <div id="active-session-ui" style="display:none;">
+          <div class="panel-title active-panel-title">
+            <i data-lucide="activity" style="color:var(--neon-green);width:18px;height:18px;"></i> Active Session
+          </div>
+
+          <!-- Countdown ring -->
+          <div class="timer-wrap">
+            <div class="timer-ring">
+              <svg width="140" height="140" viewBox="0 0 140 140">
+                <circle class="ring-bg" cx="70" cy="70" r="58"></circle>
+                <circle class="ring-fill" id="ring-fill" cx="70" cy="70" r="58"
+                  stroke-dasharray="364.4" stroke-dashoffset="0"></circle>
+              </svg>
+              <div class="timer-text">
+                <div class="timer-num" id="timer-num">--:--</div>
+                <div class="timer-lbl">REMAINING</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="session-info-rows">
+            <div class="sess-info-row"><span class="sess-info-key">Class</span><span class="sess-info-val" id="si-class">—</span></div>
+            <div class="sess-info-row"><span class="sess-info-key">Subject</span><span class="sess-info-val" id="si-subject">—</span></div>
+            <div class="sess-info-row"><span class="sess-info-key">Duration</span><span class="sess-info-val" id="si-dur">—</span></div>
+            <div class="sess-info-row"><span class="sess-info-key">GPS</span><span class="sess-info-val" id="si-gps">—</span></div>
+            <div class="sess-info-row"><span class="sess-info-key">Present</span>
+              <span class="sess-info-val" id="si-count" style="color:var(--neon-green);font-family:'Orbitron',sans-serif;">0</span>
+            </div>
+          </div>
+
+          <button class="btn-danger" id="end-btn" onclick="endSession()" style="width:100%;padding:12px;margin-top:20px;border-radius:14px;font-size:14px;">
+            <i data-lucide="square"></i> End Session
+          </button>
+        </div>
+      </div>
+
+      <!-- RIGHT: Live Attendance Feed -->
+      <div class="sess-panel inactive-panel">
+        <div class="panel-title"><i data-lucide="users" style="color:var(--neon-blue);width:18px;height:18px;"></i> Live Attendance Feed</div>
+        <div class="att-list" id="att-list">
+          <div class="empty-state">
+            <i data-lucide="clock" style="width:32px;height:32px;color:var(--text-muted);margin-bottom:8px;display:block;"></i>
+            Start a session to see attendance
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Scheduled Sessions Panel ══ -->
+    <div class="upcoming-panel" id="upcoming-panel">
+      <div class="upcoming-header">
+        <div class="upcoming-title">
+          <i data-lucide="calendar-clock" style="color:var(--neon-blue);width:18px;height:18px;"></i>
+          Today's Scheduled Classes
+          <span id="today-date-lbl" style="font-size:11px;color:var(--text-muted);font-weight:400;"></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="status-chips" id="status-chips"></div>
+          <button class="btn-ghost btn-sm" onclick="loadScheduledSessions()" title="Refresh">
+            <i data-lucide="refresh-cw"></i>
+          </button>
+          <button class="btn-primary btn-sm" onclick="openExtraClassModal()" style="font-size:12px;padding:7px 14px;">
+            <i data-lucide="plus"></i> Add Extra Class
+          </button>
+        </div>
+      </div>
+      <div id="ss-list"><div class="upcoming-empty">Loading today's schedule...</div></div>
+    </div>
+
+    <!-- Session History -->
+    <div class="history-panel">
+      <div class="panel-title"><i data-lucide="archive" style="color:var(--neon-purple);width:18px;height:18px;"></i> Recent Sessions</div>
+      <div id="history-list">
+        <div style="text-align:center;padding:20px;color:var(--text-muted);">Loading history...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────
+requireAuth('teacher', '../');
+
+let teacherUid = null;
+let activeSessionId = null;
+let selectedDurMin = 10;
+let timerInterval = null;
+let sessionTotalSec = 0;
+let sessionUnsubscribe = null;
+
+document.addEventListener('authReady', async e => {
+  teacherUid = e.detail.uid;
+  document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('session.html');
+  lucide.createIcons();
+  setInterval(() => {
+    const el = document.getElementById('clock');
+    if (el) el.textContent = new Date().toLocaleTimeString();
+  }, 1000);
+
+  // Pre-fill from timetable URL params (e.g. ?subject=ML&class=CS-A)
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('subject')) document.getElementById('inp-subject').value = params.get('subject');
+  if (params.get('class'))   document.getElementById('inp-class').value   = params.get('class');
+  if (params.get('subject') || params.get('class')) {
+    showToast('Session pre-filled from timetable. Adjust duration and click Start.', 'info', 6000);
+  }
+
+  const now = new Date();
+  document.getElementById('today-date-lbl').textContent =
+    now.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  await checkExistingSession();
+  await loadScheduledSessions();
+  loadHistory();
+});
+
+// ── Duration selection ────────────────────────────────────────────────────
+function selDur(el) {
+  document.querySelectorAll('.dur-pill').forEach(p => p.classList.remove('sel'));
+  el.classList.add('sel');
+  selectedDurMin = parseInt(el.dataset.min);
+}
+
+// ── Scheduled Sessions Management ──────────────────────────────────────
+let scheduledSessions = [];
+
+async function loadScheduledSessions() {
+  const list = document.getElementById('ss-list');
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(getApiUrl('/api/scheduled-sessions/today'), {
+      headers: { 'Authorization': `Bearer ${idToken}` }
+    });
+    if (!res.ok) { list.innerHTML = '<div class="upcoming-empty">Backend unavailable. <a href="timetable.html" style="color:var(--neon-blue);">Set up timetable</a></div>'; return; }
+    const data = await res.json();
+    scheduledSessions = data.sessions || [];
+    renderScheduledSessions();
+  } catch(e) {
+    console.warn('Could not load scheduled sessions:', e.message);
+    list.innerHTML = '<div class="upcoming-empty">Could not connect to backend.</div>';
+  }
+}
+
+function renderScheduledSessions() {
+  const list = document.getElementById('ss-list');
+  const chips = document.getElementById('status-chips');
+
+  if (!scheduledSessions.length) {
+    list.innerHTML = `<div class="upcoming-empty">
+      No classes scheduled for today.
+      <a href="timetable.html" style="color:var(--neon-blue);display:block;margin-top:6px;font-size:12px;">Set up timetable →</a>
+    </div>`;
+    chips.innerHTML = ''; lucide.createIcons(); return;
+  }
+
+  const counts = {};
+  scheduledSessions.forEach(s => { counts[s.status] = (counts[s.status]||0)+1; });
+  const chipDefs = [
+    ['scheduled','Scheduled','chip-scheduled'],
+    ['active','Active','chip-active'],
+    ['completed','Completed','chip-completed'],
+    ['expired','Expired','chip-expired'],
+    ['cancelled','Cancelled','chip-cancelled'],
+  ];
+  chips.innerHTML = chipDefs.filter(([k])=>counts[k])
+    .map(([k,l,c])=>`<span class="status-chip ${c}">${counts[k]} ${l}</span>`).join('');
+
+  list.innerHTML = scheduledSessions.map(s => {
+    const st = s.status;
+    let statusBadge = '', actions = '';
+
+    if (st==='scheduled') {
+      statusBadge = '<span class="ss-status" style="background:rgba(56,189,248,0.12);color:var(--neon-blue);">Scheduled</span>';
+      actions = `
+        <button class="btn-primary btn-sm" onclick="startScheduledSession('${s.id}','${s.subject}')" style="font-size:11px;padding:6px 12px;">
+          <i data-lucide="play"></i> Start
+        </button>
+        <button class="btn-ghost btn-sm" onclick="openEditSchedModal('${s.id}')" title="Edit"><i data-lucide="edit-3"></i></button>
+        <button class="btn-ghost btn-sm" onclick="cancelScheduledSession('${s.id}','${s.subject}')" title="Cancel"><i data-lucide="x"></i></button>`;
+    } else if (st==='active') {
+      statusBadge = '<span class="ss-status" style="background:rgba(74,222,128,0.12);color:var(--neon-green);"><span style="display:inline-block;width:6px;height:6px;background:var(--neon-green);border-radius:50%;margin-right:4px;vertical-align:middle;"></span>Active</span>';
+      actions = `<button class="btn-danger btn-sm" onclick="endSession()" style="font-size:11px;padding:6px 12px;">
+        <i data-lucide="square"></i> End Session</button>`;
+    } else if (st==='completed') {
+      statusBadge = '<span class="ss-status" style="background:rgba(167,139,250,0.1);color:var(--neon-purple);">Completed</span>';
+    } else if (st==='expired') {
+      statusBadge = '<span class="ss-status" style="background:rgba(251,146,60,0.1);color:var(--neon-orange);">Expired</span>';
+      actions = `
+        <button class="btn-ghost btn-sm" onclick="startScheduledSession('${s.id}','${s.subject}')" title="Start late" style="font-size:11px;">
+          <i data-lucide="play"></i> Start Late
+        </button>
+        <button class="btn-ghost btn-sm" onclick="cancelScheduledSession('${s.id}','${s.subject}')" title="Cancel"><i data-lucide="x"></i></button>`;
+    } else if (st==='cancelled') {
+      statusBadge = '<span class="ss-status" style="background:rgba(255,255,255,0.04);color:var(--text-muted);">Cancelled</span>';
+    }
+
+    return `<div class="ss-item ss-${st}">
+      <div class="ss-time">${s.start_time}<br><span style="font-size:9px;opacity:.6;">to</span><br>${s.end_time}</div>
+      <div class="ss-body">
+        <div class="ss-subj">${s.subject}</div>
+        <div class="ss-meta">${s.class_id}${s.room?' · '+s.room:''}</div>
+      </div>
+      <div class="ss-actions">${statusBadge} ${actions}</div>
+    </div>`;
+  }).join('');
+  lucide.createIcons();
+}
+
+async function startScheduledSession(schedId, subject) {
+  const btn = document.querySelector(`[onclick="startScheduledSession('${schedId}','${subject}')"]`);
+  if (btn) { btn.disabled=true; btn.innerHTML='<div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;"></div>'; }
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(getApiUrl(`/api/scheduled-sessions/${schedId}/start`), {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Start failed');
+    showToast(`${subject} session started`, 'success');
+    activeSessionId = data.session_id;
+    await checkExistingSession();
+    await loadScheduledSessions();
+    loadHistory();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    if (btn) { btn.disabled=false; btn.innerHTML='<i data-lucide="play"></i> Start'; lucide.createIcons(); }
+  }
+}
+
+async function cancelScheduledSession(schedId, subject) {
+  if (!confirm(`Cancel "${subject}" for today?`)) return;
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(getApiUrl(`/api/scheduled-sessions/${schedId}/cancel`), {
+      method: 'POST', headers: { 'Authorization': `Bearer ${idToken}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Cancel failed');
+    showToast(`${subject} cancelled`, 'success');
+    await loadScheduledSessions();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Edit Scheduled Session Modal (inline in session.html) ─────────────────
+let _editSchedId = null;
+function openEditSchedModal(schedId) {
+  const s = scheduledSessions.find(x=>x.id===schedId);
+  if (!s) return;
+  _editSchedId = schedId;
+  document.getElementById('ex-date').value    = s.date || '';
+  document.getElementById('ex-start').value   = s.start_time || '';
+  document.getElementById('ex-end').value     = s.end_time || '';
+  document.getElementById('ex-subject').value = s.subject || '';
+  document.getElementById('ex-class').value   = s.class_id || '';
+  document.getElementById('ex-room').value    = s.room || '';
+  document.getElementById('ex-modal-title').textContent = 'Edit Scheduled Class';
+  document.getElementById('ex-save-btn').textContent = 'Update';
+  document.getElementById('extraClassModal').classList.add('active');
+  lucide.createIcons();
+}
+
+// ── Add Extra Class Modal ─────────────────────────────────────────────────
+function openExtraClassModal() {
+  _editSchedId = null;
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('ex-date').value    = today;
+  document.getElementById('ex-start').value   = '';
+  document.getElementById('ex-end').value     = '';
+  document.getElementById('ex-subject').value = '';
+  document.getElementById('ex-class').value   = '';
+  document.getElementById('ex-room').value    = '';
+  document.getElementById('ex-modal-title').textContent = 'Add Extra Class';
+  document.getElementById('ex-save-btn').textContent = 'Schedule';
+  document.getElementById('extraClassModal').classList.add('active');
+  lucide.createIcons();
+}
+function closeExtraClassModal() {
+  document.getElementById('extraClassModal').classList.remove('active');
+  _editSchedId = null;
+}
+
+async function saveExtraClass() {
+  const inpDate = document.getElementById('ex-date');
+  const inpStart = document.getElementById('ex-start');
+  const inpEnd = document.getElementById('ex-end');
+  const inpSubject = document.getElementById('ex-subject');
+  const inpClass = document.getElementById('ex-class');
+  const inpRoom = document.getElementById('ex-room');
+
+  const date    = inpDate.value;
+  const start   = inpStart.value;
+  const end     = inpEnd.value;
+  const subject = inpSubject.value.trim();
+  const classId = inpClass.value.trim();
+  const room    = inpRoom.value.trim();
+
+  // Clear previous validation styling
+  inpDate.style.border = '';
+  inpStart.style.border = '';
+  inpEnd.style.border = '';
+  inpSubject.style.border = '';
+  inpClass.style.border = '';
+  inpRoom.style.border = '';
+
+  if (!date)    { inpDate.style.border = '1px solid #ef4444'; showToast('Select a date','error'); return; }
+  if (!start)   { inpStart.style.border = '1px solid #ef4444'; showToast('Enter start time','error'); return; }
+  if (!end)     { inpEnd.style.border = '1px solid #ef4444'; showToast('Enter end time','error'); return; }
+  
+  if (!subject) {
+    inpSubject.style.border = '1px solid #ef4444';
+    showToast('Enter a subject','error');
+    return;
+  }
+  if (subject.length < 2 || subject.length > 100) {
+    inpSubject.style.border = '1px solid #ef4444';
+    showToast('Subject name must be between 2 and 100 characters','error');
+    return;
+  }
+  if (/<[^>]*>/.test(subject)) {
+    inpSubject.style.border = '1px solid #ef4444';
+    showToast('HTML tags are not allowed in subject name','error');
+    return;
+  }
+
+  if (!classId) {
+    inpClass.style.border = '1px solid #ef4444';
+    showToast('Enter class / section','error');
+    return;
+  }
+  if (classId.length < 2 || classId.length > 50) {
+    inpClass.style.border = '1px solid #ef4444';
+    showToast('Class name must be between 2 and 50 characters','error');
+    return;
+  }
+  if (/<[^>]*>/.test(classId)) {
+    inpClass.style.border = '1px solid #ef4444';
+    showToast('HTML tags are not allowed in class name','error');
+    return;
+  }
+
+  if (start>=end) {
+    inpStart.style.border = '1px solid #ef4444';
+    inpEnd.style.border = '1px solid #ef4444';
+    showToast('End time must be after start time','error');
+    return;
+  }
+
+  const btn = document.getElementById('ex-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const isEdit  = !!_editSchedId;
+    const url     = isEdit ? getApiUrl(`/api/scheduled-sessions/${_editSchedId}`) : getApiUrl('/api/scheduled-sessions');
+    const method  = isEdit ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers:{'Content-Type':'application/json','Authorization':`Bearer ${idToken}`},
+      body: JSON.stringify({date,start_time:start,end_time:end,subject,class_id:classId,room})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || (isEdit?'Update failed':'Schedule failed'));
+    showToast(isEdit?'Class updated':`${subject} added for today`, 'success');
+    closeExtraClassModal();
+    await loadScheduledSessions();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  btn.disabled=false; btn.textContent=_editSchedId?'Update':'Schedule';
+}
+
+// ── Check if teacher already has an active session ────────────────────────
+async function checkExistingSession() {
+  try {
+    const snap = await db.collection('sessions')
+      .where('teacher_id', '==', teacherUid)
+      .where('is_active', '==', true)
+      .limit(1)
+      .get();
+    if (!snap.empty) {
+      const doc = snap.docs[0];
+      const data = doc.data();
+      
+      // Lazy expiry check
+      let expired = false;
+      if (data.expires_at) {
+        const expDate = data.expires_at.toDate();
+        if (new Date() > expDate) {
+          await doc.ref.update({ is_active: false });
+          expired = true;
+        }
+      }
+      
+      if (!expired) {
+        activeSessionId = doc.id;
+        const expDate = data.expires_at.toDate();
+        const remainingSec = Math.max(0, Math.floor((expDate - new Date()) / 1000));
+        showActiveUI({
+          ...data,
+          session_id: doc.id,
+          remaining_seconds: remainingSec
+        });
+        subscribeAttendance(doc.id);
+      }
+    }
+  } catch(e) { console.warn('Session check failed:', e.message); }
+}
+
+// ── Start Session ─────────────────────────────────────────────────────────
+async function startSession() {
+  const inpClass = document.getElementById('inp-class');
+  const inpSubject = document.getElementById('inp-subject');
+  const classId  = inpClass.value.trim();
+  const subject  = inpSubject.value.trim();
+  const useGps   = document.getElementById('use-gps').checked;
+
+  // Clear previous validation styling
+  inpClass.style.border = '';
+  inpSubject.style.border = '';
+
+  // 1. Validation checks
+  if (!classId) {
+    inpClass.style.border = '1px solid #ef4444';
+    showToast('Enter a class/section name', 'error');
+    return;
+  }
+  if (classId.length < 2 || classId.length > 50) {
+    inpClass.style.border = '1px solid #ef4444';
+    showToast('Class name must be between 2 and 50 characters', 'error');
+    return;
+  }
+  if (/<[^>]*>/.test(classId)) {
+    inpClass.style.border = '1px solid #ef4444';
+    showToast('HTML tags are not allowed in class name', 'error');
+    return;
+  }
+
+  if (!subject) {
+    inpSubject.style.border = '1px solid #ef4444';
+    showToast('Enter a subject name', 'error');
+    return;
+  }
+  if (subject.length < 2 || subject.length > 100) {
+    inpSubject.style.border = '1px solid #ef4444';
+    showToast('Subject name must be between 2 and 100 characters', 'error');
+    return;
+  }
+  if (/<[^>]*>/.test(subject)) {
+    inpSubject.style.border = '1px solid #ef4444';
+    showToast('HTML tags are not allowed in subject name', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px;"></div> Starting...';
+
+  try {
+    let location = null;
+    if (useGps) {
+      location = await captureGPS();
+      if (!location) {
+        showToast('GPS unavailable — session started without location', 'warning');
+      }
+    }
+
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(getApiUrl('/api/session/create'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        teacher_id: teacherUid,
+        class_id: classId,
+        subject: subject,
+        duration_minutes: selectedDurMin,
+        location: location,
+        location_radius: 10
+      })
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      throw new Error(data.error || 'Failed to start session');
+    }
+
+    activeSessionId = data.session_id;
+
+    showToast(`Session started — ${selectedDurMin} min window open`, 'success');
+    showActiveUI({
+      class_id: classId,
+      subject: subject,
+      duration_minutes: selectedDurMin,
+      location: location,
+      session_id: data.session_id,
+      remaining_seconds: selectedDurMin * 60,
+      attendance_count: 0
+    });
+    subscribeAttendance(data.session_id);
+    loadHistory();
+  } catch(e) {
+    showToast('Could not start session: ' + e.message, 'error');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="play"></i> Start Attendance Session';
+  lucide.createIcons();
+}
+
+// ── End Session ───────────────────────────────────────────────────────────
+async function endSession() {
+  if (!activeSessionId) return;
+  if (!confirm('End the current attendance session?')) return;
+  const btn = document.getElementById('end-btn');
+  btn.disabled = true;
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(getApiUrl('/api/session/end'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        session_id: activeSessionId,
+        teacher_id: teacherUid
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || 'Failed to end session');
+    }
+    showToast('Session ended successfully', 'success');
+    clearTimerAndSub();
+    showIdleUI();
+    loadHistory();
+  } catch(e) {
+    showToast('Could not end session: ' + e.message, 'error');
+  }
+  btn.disabled = false;
+}
+
+// ── Show/hide UI states ───────────────────────────────────────────────────
+function showActiveUI(data) {
+  document.getElementById('no-session-ui').style.display = 'none';
+  document.getElementById('active-session-ui').style.display = 'block';
+  document.getElementById('session-badge').style.display = 'inline-flex';
+  document.getElementById('ctrl-panel').className = 'sess-panel active-panel';
+  document.getElementById('si-class').textContent   = data.class_id   || '—';
+  document.getElementById('si-subject').textContent = data.subject     || '—';
+  document.getElementById('si-dur').textContent     = (data.duration_minutes || selectedDurMin) + ' min';
+  document.getElementById('si-gps').textContent     = data.location ? `${data.location.lat?.toFixed(4)}, ${data.location.lon?.toFixed(4)}` : 'None';
+  document.getElementById('si-count').textContent   = data.attendance_count || 0;
+  sessionTotalSec = (data.duration_minutes || selectedDurMin) * 60;
+  startCountdown(data.remaining_seconds ?? sessionTotalSec);
+  lucide.createIcons();
+}
+
+function showIdleUI() {
+  document.getElementById('no-session-ui').style.display = 'block';
+  document.getElementById('active-session-ui').style.display = 'none';
+  document.getElementById('session-badge').style.display = 'none';
+  document.getElementById('ctrl-panel').className = 'sess-panel inactive-panel';
+  document.getElementById('att-list').innerHTML = '<div class="empty-state"><i data-lucide="clock" style="width:32px;height:32px;color:var(--text-muted);margin-bottom:8px;display:block;"></i>Start a session to see attendance</div>';
+  lucide.createIcons();
+  activeSessionId = null;
+}
+
+// ── Countdown timer + ring ────────────────────────────────────────────────
+function startCountdown(remainingSec) {
+  if (timerInterval) clearInterval(timerInterval);
+  let rem = Math.max(0, remainingSec);
+  updateRing(rem);
+  timerInterval = setInterval(async () => {
+    rem--;
+    if (rem <= 0) {
+      clearInterval(timerInterval);
+      showToast('Session expired automatically', 'info');
+      showIdleUI();
+      loadHistory();
+      return;
+    }
+    updateRing(rem);
+    // Every 30s, check if the session is still active in Firestore
+    if (rem % 30 === 0 && activeSessionId) {
+      try {
+        const doc = await db.collection('sessions').doc(activeSessionId).get();
+        if (doc.exists) {
+          const s = doc.data();
+          if (!s.is_active) {
+            clearInterval(timerInterval);
+            showIdleUI();
+            loadHistory();
+            return;
+          }
+        }
+      } catch(e) {}
+    }
+  }, 1000);
+}
+
+function updateRing(rem) {
+  const circumference = 364.4;
+  const fraction = rem / sessionTotalSec;
+  const offset = circumference * (1 - fraction);
+  const fill = document.getElementById('ring-fill');
+  if (fill) {
+    fill.style.strokeDashoffset = offset;
+    fill.className = 'ring-fill' + (rem < 60 ? ' warn' : '');
+  }
+  const num = document.getElementById('timer-num');
+  if (num) {
+    const m = Math.floor(rem / 60), s = rem % 60;
+    num.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    num.className = 'timer-num' + (rem < 60 ? ' warn' : '');
+  }
+}
+
+// ── Live attendance Firestore listener ────────────────────────────────────
+function subscribeAttendance(sessionId) {
+  if (sessionUnsubscribe) sessionUnsubscribe();
+  const today = new Date().toISOString().split('T')[0];
+  sessionUnsubscribe = db.collection('attendance')
+    .where('session_id', '==', sessionId)
+    .orderBy('timestamp', 'desc')
+    .onSnapshot(snap => {
+      const el = document.getElementById('att-list');
+      const countEl = document.getElementById('si-count');
+      if (snap.empty) {
+        el.innerHTML = '<div class="empty-state"><i data-lucide="user-check" style="width:28px;height:28px;color:var(--text-muted);margin-bottom:8px;display:block;"></i>Waiting for students...</div>';
+        lucide.createIcons();
+        if (countEl) countEl.textContent = '0';
+        return;
+      }
+      if (countEl) countEl.textContent = snap.size;
+      el.innerHTML = snap.docs.map(d => {
+        const r = d.data();
+        const conf = r.confidence ? Math.round(r.confidence * 100) + '%' : '';
+        return `<div class="att-item">
+          <div class="att-avatar">${(r.name||'?')[0].toUpperCase()}</div>
+          <div>
+            <div class="att-name">${r.name || 'Unknown'}</div>
+            <div class="att-conf">${conf ? `FaceNet ${conf}` : 'AI Face'}</div>
+          </div>
+          <div class="att-time">${r.time || ''}</div>
+        </div>`;
+      }).join('');
+      lucide.createIcons();
+    }, err => console.warn('Attendance listener error:', err.message));
+}
+
+// ── Session history ───────────────────────────────────────────────────────
+async function loadHistory() {
+  const el = document.getElementById('history-list');
+  try {
+    const snap = await db.collection('sessions')
+      .where('teacher_id', '==', teacherUid)
+      .orderBy('created_at', 'desc')
+      .limit(10)
+      .get();
+    if (snap.empty) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">No sessions yet</div>'; return; }
+    el.innerHTML = snap.docs.map(d => {
+      const s = d.data();
+      const isActive = s.is_active;
+      const dt = s.created_at?.toDate?.()?.toLocaleString('en-IN') || '—';
+      const iconColor = isActive ? 'rgba(74,222,128,0.15)' : 'rgba(56,189,248,0.1)';
+      const iconStroke = isActive ? 'var(--neon-green)' : 'var(--neon-blue)';
+      return `<div class="hist-item">
+        <div class="hist-icon" style="background:${iconColor};">
+          <i data-lucide="${isActive ? 'activity' : 'check-circle'}" style="width:18px;height:18px;color:${iconStroke};"></i>
+        </div>
+        <div class="hist-meta">
+          <div class="hist-title">${s.class_id || 'Class'} — ${s.subject || 'Subject'}
+            ${isActive ? '<span class="badge badge-green" style="font-size:10px;margin-left:6px;">Live</span>' : ''}
+          </div>
+          <div class="hist-sub">${dt} · ${s.duration_minutes} min</div>
+        </div>
+        <div class="hist-count">${s.attendance_count || 0} <span style="font-size:10px;color:var(--text-muted);font-family:'Inter';">present</span></div>
+      </div>`;
+    }).join('');
+    lucide.createIcons();
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Could not load history</div>';
+  }
+}
+
+// ── GPS capture ───────────────────────────────────────────────────────────
+function captureGPS() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    document.getElementById('gps-status').textContent = 'Detecting GPS...';
+    try {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          document.getElementById('gps-status').textContent = `Pinned: ${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`;
+          resolve(loc);
+        },
+        err => {
+          console.warn('GPS detection failed:', err);
+          document.getElementById('gps-status').textContent = 'GPS failed';
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } catch(e) {
+      console.warn('GPS API call failed synchronously:', e);
+      document.getElementById('gps-status').textContent = 'GPS failed';
+      resolve(null);
+    }
+  });
+}
+
+function clearTimerAndSub() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  if (sessionUnsubscribe) { sessionUnsubscribe(); sessionUnsubscribe = null; }
+}
+
+lucide.createIcons();
+</script>
+
+<!-- ── Add Extra Class / Edit Scheduled Session Modal ── -->
+<div class="modal-overlay" id="extraClassModal">
+  <div class="modal-box">
+    <div class="modal-title">
+      <i data-lucide="calendar-plus" style="width:18px;height:18px;color:var(--neon-blue);"></i>
+      <span id="ex-modal-title">Add Extra Class</span>
+    </div>
+    <div class="modal-group">
+      <label>Date *</label>
+      <input type="date" id="ex-date">
+    </div>
+    <div class="modal-form-row">
+      <div class="modal-group"><label>Start Time *</label><input type="time" id="ex-start"></div>
+      <div class="modal-group"><label>End Time *</label><input type="time" id="ex-end"></div>
+    </div>
+    <div class="modal-group">
+      <label>Subject *</label>
+      <input type="text" id="ex-subject" placeholder="e.g. Machine Learning">
+    </div>
+    <div class="modal-group">
+      <label>Class / Section *</label>
+      <input type="text" id="ex-class" placeholder="e.g. CS-A Sem 5">
+    </div>
+    <div class="modal-group">
+      <label>Room (optional)</label>
+      <input type="text" id="ex-room" placeholder="e.g. Room 201">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeExtraClassModal()">Cancel</button>
+      <button class="btn-primary" id="ex-save-btn" onclick="saveExtraClass()">Schedule</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

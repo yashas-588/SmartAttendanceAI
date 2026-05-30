@@ -205,17 +205,58 @@ class LivenessEngine {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  FULL LIVENESS CHECK (v2 — weighted scoring)
+  // ═══════════════════════════════════════════════════════════════════════
+  //  MEDIAPIPE FACEMESH INITIALIZATION & PRE-WARMING
   // ═══════════════════════════════════════════════════════════════════════
 
-  async runFullCheck(videoEl, onStatus, blinkTimeout) {
-    const timeout = blinkTimeout || this.TIMEOUT_MS;
+  async initFaceMesh() {
+    if (window.faceMeshLoaded) return;
+    if (typeof FaceMesh === 'undefined') {
+      throw new Error('MediaPipe FaceMesh script not loaded. Please ensure the script is included.');
+    }
+    
+    window.faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+    
+    window.faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    
+    window.faceMesh.onResults(results => {
+      window.lastFaceMeshResults = results;
+    });
+    
+    // Warm up by sending a dummy canvas
+    const dummyCanvas = document.createElement('canvas');
+    dummyCanvas.width = 1;
+    dummyCanvas.height = 1;
+    await window.faceMesh.send({ image: dummyCanvas });
+    
+    window.faceMeshLoaded = true;
+    console.log('✅ MediaPipe FaceMesh loaded and warmed up');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  FULL LIVENESS CHECK (Upgraded Active Challenge-Response)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async runFullCheck(videoEl, challengeSeq, onStatus) {
+    // 1. Pre-flight Quality Assessment
+    onStatus('Checking camera quality...', 'scanning');
+    await this._sleep(300);
+    const q = this.assessQuality(videoEl);
+    
+    onStatus('Analyzing surface texture & motion...', 'scanning');
     const canvas = document.createElement('canvas');
     canvas.width = videoEl.videoWidth || 640;
     canvas.height = videoEl.videoHeight || 480;
     const ctx = canvas.getContext('2d');
-
-    const scores = { quality: 0, texture: 0, biometric: 0, head: 0, blink: 0 };
+    
+    const scores = { quality: q.score, texture: 0, biometric: 0, head: 0, blink: 0 };
     const details = {
       face_detected: false,
       lbp_score: 0, lbp_pass: false,
@@ -225,47 +266,14 @@ class LivenessEngine {
       blink_pass: false,
       head_pose_pass: false,
       reason: '',
-      // v2 additions
       weighted_score: 0,
-      quality_hint: '',
+      quality_hint: q.hint,
       guidance: ''
     };
-
-    // ── PHASE 0: Pre-flight Quality ──────────────────────────────────
-    onStatus('Checking camera quality...', 'scanning');
-    await this._sleep(300);
-    const q = this.assessQuality(videoEl);
-    scores.quality = q.score;
-    details.quality_hint = q.hint;
-
-    if (!q.overall) {
-      onStatus(q.hint, 'warning');
-      await this._sleep(1500); // Give user time to adjust
-      // Re-check once
-      const q2 = this.assessQuality(videoEl);
-      scores.quality = q2.score;
-      details.quality_hint = q2.hint;
-    }
-
-    // ── PHASE 1: Texture + Screen ────────────────────────────────────
-    onStatus('Analyzing surface texture...', 'scanning');
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    details.lbp_score = this.computeLBP(imgData, canvas.width, canvas.height);
-    details.lbp_pass  = details.lbp_score >= this.LBP_THRESH;
-
-    details.moire_score = this.detectMoire(imgData, canvas.width, canvas.height);
-    details.moire_pass  = details.moire_score > this.MOIRE_LOW && details.moire_score < this.MOIRE_HIGH;
-
-    // Soft score: both pass = 1.0, one pass = 0.6, none = 0.15
-    scores.texture = details.lbp_pass && details.moire_pass ? 1.0 :
-                     details.lbp_pass || details.moire_pass ? 0.6 : 0.15;
-
-    // ── PHASE 2: Motion + rPPG (~1s) ────────────────────────────────
-    onStatus('Detecting micro-motion & pulse...', 'scanning');
+    
+    // Quick passive check (10 frames, ~800ms) to run the existing anti-spoofing pipeline
     let motionScores = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 10; i++) {
       await this._sleep(80);
       ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
       const fd = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -273,159 +281,288 @@ class LivenessEngine {
       const fb = { x: canvas.width*0.2, y: 0, width: canvas.width*0.6, height: canvas.height*0.5 };
       this.updateRPPG(fd, fb, canvas.width);
     }
-
+    
+    // Compute texture features (LBP & Moire)
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    details.lbp_score = this.computeLBP(imgData, canvas.width, canvas.height);
+    details.lbp_pass  = details.lbp_score >= this.LBP_THRESH;
+    details.moire_score = this.detectMoire(imgData, canvas.width, canvas.height);
+    details.moire_pass  = details.moire_score > this.MOIRE_LOW && details.moire_score < this.MOIRE_HIGH;
+    scores.texture = details.lbp_pass && details.moire_pass ? 1.0 :
+                     details.lbp_pass || details.moire_pass ? 0.6 : 0.15;
+                     
     details.motion_score = motionScores.reduce((a,b)=>a+b,0)/motionScores.length;
     details.motion_pass  = details.motion_score >= this.MOTION_THRESH;
     details.rppg_score   = this.getRPPGVariance();
     details.rppg_pass    = details.rppg_score >= this.RPPG_MIN_VAR;
-
     scores.biometric = details.motion_pass && details.rppg_pass ? 1.0 :
                        details.motion_pass || details.rppg_pass ? 0.65 : 0.1;
 
-    // ── PHASE 3: Head Rotation ───────────────────────────────────────
-    onStatus('Turn your head slightly left or right', 'challenge');
-    const headResult = await this._runHeadChallenge(videoEl, timeout, (g) => {
-      if (g.direction === 'left')  onStatus('← Turn head slightly LEFT', 'challenge');
-      else if (g.direction === 'right') onStatus('→ Turn head slightly RIGHT', 'challenge');
-      else onStatus('✓ Head movement detected!', 'challenge');
-    });
-    details.head_pose_pass = headResult.passed;
-    scores.head = headResult.score;
+    // 2. Load and initialize MediaPipe FaceMesh if needed
+    try {
+      await this.initFaceMesh();
+    } catch (err) {
+      details.reason = 'Failed to load liveness challenge engine.';
+      return { passed: false, details, completed_challenges: [] };
+    }
 
-    // ── PHASE 4: Blink ───────────────────────────────────────────────
-    onStatus('BLINK NOW — Blink your eyes naturally', 'challenge');
-    const blinkResult = await this._runBlinkChallenge(videoEl, timeout, (g) => {
-      if (g.earRange > 0.03) onStatus('Almost... blink once more', 'challenge');
-    });
-    details.blink_pass = blinkResult.passed;
-    scores.blink = blinkResult.score;
-
-    // ── WEIGHTED DECISION ────────────────────────────────────────────
+    // 3. Loop through active challenges
+    const completedList = [];
+    let challengeFailed = false;
+    let challengeFailReason = '';
+    
+    const chalIcons = {
+      'blink twice': '👁️',
+      'turn head left': '⬅️',
+      'turn head right': '➡️',
+      'smile': '😊',
+      'move closer': '👤',
+      'raise eyebrows': '🤨'
+    };
+    
+    const chalInstructions = {
+      'blink twice': 'Blink twice naturally',
+      'turn head left': 'Turn head slightly left',
+      'turn head right': 'Turn head slightly right',
+      'smile': 'Smile naturally',
+      'move closer': 'Move closer to the camera',
+      'raise eyebrows': 'Raise your eyebrows'
+    };
+    
+    for (let index = 0; index < challengeSeq.length; index++) {
+      const chal = challengeSeq[index];
+      const icon = chalIcons[chal] || '👁️';
+      const instruction = chalInstructions[chal] || chal;
+      
+      onStatus(instruction, 'challenge');
+      if (typeof showChallenge === 'function') {
+        showChallenge(icon, instruction, `Challenge ${index + 1} of ${challengeSeq.length}`);
+      }
+      if (typeof startChallengeTimer === 'function') {
+        startChallengeTimer(20); // 20s per challenge
+      }
+      
+      const chalRes = await this._detectChallenge(videoEl, chal, 20000, (guidance) => {
+        if (typeof showChallenge === 'function') {
+          showChallenge(icon, guidance, `Challenge ${index + 1} of ${challengeSeq.length}`);
+        }
+      });
+      
+      if (typeof hideChallenge === 'function') {
+        hideChallenge();
+      }
+      
+      if (chalRes.passed) {
+        completedList.push(chal);
+        if (chal === 'blink twice') {
+          details.blink_pass = true;
+          scores.blink = 1.0;
+        } else if (chal.includes('head')) {
+          details.head_pose_pass = true;
+          scores.head = 1.0;
+        }
+      } else {
+        challengeFailed = true;
+        challengeFailReason = chalRes.reason;
+        break;
+      }
+    }
+    
+    // Complete remaining score filling for the final calculation
+    if (!details.blink_pass) scores.blink = 1.0; // Pass since not requested or completed
+    if (!details.head_pose_pass) scores.head = 1.0; // Pass since not requested or completed
+    
+    // Calculate final weighted score
     let total = 0;
     for (const [k,w] of Object.entries(this.WEIGHTS)) total += (scores[k]||0) * w;
     details.weighted_score = Math.round(total * 100);
     details.scores = scores;
-
-    const passed = total >= this.PASS_THRESHOLD;
+    
+    const passed = !challengeFailed && (total >= this.PASS_THRESHOLD);
     details.face_detected = passed;
-
+    
     if (passed) {
       details.reason = `Liveness verified (${details.weighted_score}% confidence)`;
     } else {
-      // Build human-friendly failure reason
-      const weakest = Object.entries(scores).sort((a,b)=>a[1]-b[1])[0];
-      const hints = {
-        quality: 'Improve lighting and hold camera steady',
-        texture: 'Move closer to the camera',
-        biometric: 'Stay still and look at the camera',
-        head: 'Turn your head slightly left then right',
-        blink: 'Look at the camera and blink naturally'
-      };
-      details.reason = `Score: ${details.weighted_score}% (need ${Math.round(this.PASS_THRESHOLD*100)}%). ${hints[weakest[0]] || 'Try again in better conditions.'}`;
-      details.guidance = hints[weakest[0]];
+      details.reason = challengeFailed ? `Challenge failed: ${challengeFailReason}` : `Anti-spoofing score: ${details.weighted_score}% too low`;
+      details.guidance = challengeFailed ? 'Follow instructions closely and try again.' : 'Hold camera steady and check lighting.';
     }
-
-    return { passed, details };
+    
+    return { passed, details, completed_challenges: completedList };
   }
 
-  // ── HEAD CHALLENGE (relaxed, rolling average, partial credit) ──────
+  // ═══════════════════════════════════════════════════════════════════════
+  //  ACTIVE CHALLENGE DETECTOR
+  // ═══════════════════════════════════════════════════════════════════════
 
-  async _runHeadChallenge(videoEl, timeout, onGuidance) {
+  async _detectChallenge(videoEl, challengeType, timeout, onGuidance) {
     return new Promise(resolve => {
-      let maxLeft = 0, maxRight = 0;
-      const yawHistory = [];
-      const start = Date.now();
-
-      const check = async () => {
-        if (Date.now() - start > timeout) {
-          const range = Math.abs(maxLeft) + Math.abs(maxRight);
-          const score = Math.min(1, range / (this.HEAD_YAW_THRESH * 1.5));
-          resolve({ passed: score > 0.4, score, maxLeft, maxRight });
+      const initTime = Date.now();
+      let startTime = null;
+      let completed = false;
+      
+      let blinkCount = 0;
+      let blinkState = 'open'; // 'open', 'closed'
+      let lastBlinkTime = 0;
+      
+      let baselineRatio = null;
+      let baselineEyeDist = null;
+      let baselineEAR = null;
+      
+      const checkFrame = async () => {
+        if (startTime && (Date.now() - startTime > timeout)) {
+          resolve({ passed: false, reason: 'Time limit exceeded' });
           return;
         }
-
+        if (!startTime && (Date.now() - initTime > 30000)) {
+          resolve({ passed: false, reason: 'No face detected within timeout' });
+          return;
+        }
+        if (completed) return;
+        
         try {
-          const det = await faceapi.detectSingleFace(videoEl,
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 })
-          ).withFaceLandmarks();
-
-          if (det) {
-            const { yaw } = this.computeHeadPose(det.landmarks.positions);
-            yawHistory.push(yaw);
-            // Rolling average (3 frames) for stability
-            const recent = yawHistory.slice(-3);
-            const avg = recent.reduce((a,b)=>a+b,0) / recent.length;
-
-            if (avg < maxLeft)  maxLeft = avg;
-            if (avg > maxRight) maxRight = avg;
-
-            const leftOk  = maxLeft < -this.HEAD_YAW_THRESH;
-            const rightOk = maxRight > this.HEAD_YAW_THRESH;
-            const range   = Math.abs(maxLeft) + Math.abs(maxRight);
-
-            if (onGuidance) onGuidance({
-              yaw: avg, leftDone: leftOk, rightDone: rightOk,
-              direction: !leftOk ? 'left' : !rightOk ? 'right' : 'done'
-            });
-
-            // Pass if either direction done OR total range is enough
-            if ((leftOk && rightOk) || range > this.HEAD_YAW_THRESH * 1.5) {
-              resolve({ passed: true, score: 1.0, maxLeft, maxRight });
-              return;
-            }
+          if (!window.faceMesh) {
+            resolve({ passed: false, reason: 'Liveness engine not initialized' });
+            return;
           }
-        } catch(e) {}
-        setTimeout(check, 150);
-      };
-      check();
-    });
-  }
-
-  // ── BLINK CHALLENGE (glass-aware, partial credit) ──────────────────
-
-  async _runBlinkChallenge(videoEl, timeout, onGuidance) {
-    return new Promise(resolve => {
-      let minEAR = 1, maxEAR = 0, lowCount = 0, blinkFound = false;
-      const start = Date.now();
-
-      const check = async () => {
-        if (Date.now() - start > timeout) {
-          const range = maxEAR - minEAR;
-          const score = Math.min(1, range / 0.08);
-          resolve({ passed: score > 0.35, score, minEAR, maxEAR });
-          return;
-        }
-        if (blinkFound) return;
-
-        try {
-          const det = await faceapi.detectSingleFace(videoEl,
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 })
-          ).withFaceLandmarks();
-
-          if (det) {
-            const lm = det.landmarks.positions;
-            const ear = (this.computeEAR(lm,true) + this.computeEAR(lm,false)) / 2;
-
-            if (ear < minEAR) minEAR = ear;
-            if (ear > maxEAR) maxEAR = ear;
-
-            if (onGuidance) onGuidance({ ear, earRange: maxEAR - minEAR });
-
-            if (ear < this.EAR_THRESH) {
-              lowCount++;
-            } else {
-              if (lowCount >= 1) { // ↓ from 2 (accept faster/partial blinks)
-                blinkFound = true;
-                resolve({ passed: true, score: 1.0, minEAR, maxEAR });
-                return;
+          await window.faceMesh.send({ image: videoEl });
+          const res = window.lastFaceMeshResults;
+          
+          if (res && res.multiFaceLandmarks && res.multiFaceLandmarks.length > 0) {
+            if (!startTime) {
+              startTime = Date.now();
+            }
+            const landmarks = res.multiFaceLandmarks[0];
+            const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z || 0);
+            const dist2D = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            
+            const noseBridge = landmarks[1];
+            const cheekLeft = landmarks[454];   // Anatomical Left
+            const cheekRight = landmarks[234];  // Anatomical Right
+            const eyeLeftOuter = landmarks[33];
+            const eyeLeftInner = landmarks[133];
+            const eyeRightOuter = landmarks[263];
+            const eyeRightInner = landmarks[362];
+            
+            const eyeDist = dist(eyeLeftOuter, eyeRightOuter);
+            
+            if (challengeType === 'blink twice') {
+              if (baselineEAR === null) {
+                const leftEAR = dist(landmarks[159], landmarks[145]) / (dist(eyeLeftOuter, eyeLeftInner) || 1e-6);
+                const rightEAR = dist(landmarks[386], landmarks[374]) / (dist(eyeRightOuter, eyeRightInner) || 1e-6);
+                baselineEAR = (leftEAR + rightEAR) / 2;
+                console.log(`Blink challenge initialized. Baseline EAR: ${baselineEAR}`);
               }
-              lowCount = 0;
+              
+              const leftEAR = dist(landmarks[159], landmarks[145]) / (dist(eyeLeftOuter, eyeLeftInner) || 1e-6);
+              const rightEAR = dist(landmarks[386], landmarks[374]) / (dist(eyeRightOuter, eyeRightInner) || 1e-6);
+              const ear = (leftEAR + rightEAR) / 2;
+              
+              const closedThresh = baselineEAR * 0.75;
+              const openThresh = baselineEAR * 0.90;
+              
+              if (blinkState === 'open' && ear < closedThresh) {
+                blinkState = 'closed';
+              } else if (blinkState === 'closed' && ear > openThresh) {
+                const now = Date.now();
+                if (now - lastBlinkTime > 200) {
+                  blinkCount++;
+                  lastBlinkTime = now;
+                  if (onGuidance) onGuidance(`Blink ${blinkCount}/2 detected!`);
+                }
+                blinkState = 'open';
+              }
+              
+              if (blinkCount >= 2) {
+                completed = true;
+                resolve({ passed: true });
+                return;
+              } else {
+                if (onGuidance) onGuidance(`Blink twice (Detected: ${blinkCount}/2)`);
+              }
+              
+            } else if (challengeType === 'turn head left') {
+              const distLeft = dist2D(noseBridge, cheekLeft);
+              const distRight = dist2D(noseBridge, cheekRight);
+              const ratio = distLeft / (distRight + 1e-6);
+              
+              if (ratio < 0.65) {
+                completed = true;
+                resolve({ passed: true });
+                return;
+              } else {
+                if (onGuidance) onGuidance('← Turn head left');
+              }
+              
+            } else if (challengeType === 'turn head right') {
+              const distLeft = dist2D(noseBridge, cheekLeft);
+              const distRight = dist2D(noseBridge, cheekRight);
+              const ratio = distLeft / (distRight + 1e-6);
+              
+              if (ratio > 1.54) {
+                completed = true;
+                resolve({ passed: true });
+                return;
+              } else {
+                if (onGuidance) onGuidance('→ Turn head right');
+              }
+              
+            } else if (challengeType === 'smile') {
+              const mouthLeft = landmarks[61];
+              const mouthRight = landmarks[291];
+              const smileRatio = dist(mouthLeft, mouthRight) / (eyeDist + 1e-6);
+              
+              if (baselineRatio === null) baselineRatio = smileRatio;
+              
+              if (smileRatio > baselineRatio * 1.08 || smileRatio > 0.80) {
+                completed = true;
+                resolve({ passed: true });
+                return;
+              } else {
+                if (onGuidance) onGuidance('😊 Smile naturally');
+              }
+              
+            } else if (challengeType === 'move closer') {
+              if (baselineEyeDist === null) baselineEyeDist = eyeDist;
+              
+              if (eyeDist >= baselineEyeDist * 1.08) {
+                completed = true;
+                resolve({ passed: true });
+                return;
+              } else {
+                if (onGuidance) onGuidance('👤 Move closer to camera');
+              }
+              
+            } else if (challengeType === 'raise eyebrows') {
+              const leftEyebrow = landmarks[70];
+              const leftEye = landmarks[159];
+              const rightEyebrow = landmarks[300];
+              const rightEye = landmarks[386];
+              const eyebrowDist = (dist(leftEyebrow, leftEye) + dist(rightEyebrow, rightEye)) / 2;
+              const eyebrowRatio = eyebrowDist / (eyeDist + 1e-6);
+              
+              if (baselineRatio === null) baselineRatio = eyebrowRatio;
+              
+              if (eyebrowRatio >= baselineRatio * 1.08) {
+                completed = true;
+                resolve({ passed: true });
+                return;
+              } else {
+                if (onGuidance) onGuidance('🤨 Raise eyebrows');
+              }
             }
+          } else {
+            if (onGuidance) onGuidance('No face detected. Center your face.');
           }
-        } catch(e) {}
-        setTimeout(check, 100);
+        } catch (e) {
+          console.warn('Error in challenge check frame:', e);
+        }
+        
+        setTimeout(checkFrame, 120);
       };
-      check();
+      
+      checkFrame();
     });
   }
 

@@ -196,6 +196,23 @@
       }
       const data = snap.data();
       const role = (data.role === 'admin') ? 'teacher' : (data.role || 'student');
+      
+      // If student has mustChangePassword flag, clear it — they've already set
+      // their own password via the Firebase reset email link before logging in.
+      if (role === 'student' && data.mustChangePassword === true) {
+        await db.collection('users').doc(cred.user.uid).update({
+          mustChangePassword: false,
+          passwordLastChangedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        // Try to update students collection accountStatus (may fail if rules restrict student writes)
+        try {
+          const studentSnap = await db.collection('students').where('uid', '==', cred.user.uid).limit(1).get();
+          if (!studentSnap.empty) {
+            await studentSnap.docs[0].ref.update({ accountStatus: 'Active' });
+          }
+        } catch(_) { /* students collection write restricted to teachers — silently skip */ }
+      }
+      
       window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
     } catch(e) {
       const authErrors = ['auth/wrong-password', 'auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-email'];
@@ -273,11 +290,39 @@
   // If already logged in, redirect
   auth.onAuthStateChanged(async user => {
     if (user) {
-      const snap = await db.collection('users').doc(user.uid).get();
-      if (snap.exists) {
+      try {
+        let snap = await db.collection('users').doc(user.uid).get();
+        if (!snap.exists) {
+          // Default to student if registered via Firebase Console to prevent unauthorized teacher access
+          await db.collection('users').doc(user.uid).set({
+            email: user.email,
+            role: 'student',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          snap = await db.collection('users').doc(user.uid).get();
+        }
         const data = snap.data();
         const role = (data.role === 'admin') ? 'teacher' : (data.role || 'student');
+        
+        // If student has mustChangePassword flag, clear it — they've already set
+        // their own password via the Firebase reset email link before logging in.
+        if (role === 'student' && data.mustChangePassword === true) {
+          await db.collection('users').doc(user.uid).update({
+            mustChangePassword: false,
+            passwordLastChangedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          // Try to update students collection accountStatus (may fail if rules restrict student writes)
+          try {
+            const studentSnap = await db.collection('students').where('uid', '==', user.uid).limit(1).get();
+            if (!studentSnap.empty) {
+              await studentSnap.docs[0].ref.update({ accountStatus: 'Active' });
+            }
+          } catch(_) { /* students collection write restricted to teachers — silently skip */ }
+        }
+        
         window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
+      } catch(e) {
+        console.error("Auth state change redirect error:", e);
       }
     }
   });

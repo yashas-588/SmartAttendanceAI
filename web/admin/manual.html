@@ -93,7 +93,7 @@ async function loadStudents() {
   // Load existing records for selected date
   const existing = {};
   const attSnap = await db.collection('attendance').where('date','==',selectedDate).get();
-  attSnap.forEach(d => { const r = d.data(); existing[r.studentId] = r.status; });
+  attSnap.forEach(d => { const r = d.data(); existing[r.studentId || r.student_uid] = r.status; });
 
   const list = document.getElementById('student-list');
   if (!students.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">No students registered.</div>'; return; }
@@ -131,14 +131,29 @@ async function setStatus(id, name, status, btn) {
   }
 
   const selectedDate = document.getElementById('att-date').value;
-  const docId = `${selectedDate}_${id}`;
-  await db.collection('attendance').doc(docId).set({
-    studentId: id, name, date: selectedDate,
-    time: new Date().toLocaleTimeString('en-IN'),
-    status, method: 'Manual Override',
-    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
-  showToast(`${name} → ${status}`, 'success');
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch(getApiUrl('/api/manual-attendance'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        student_uid: id,
+        name: name,
+        status: status,
+        date: selectedDate
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Failed to update attendance');
+    }
+    showToast(`${name} → ${status}`, 'success');
+  } catch(e) {
+    showToast(`Error: ${e.message}`, 'error');
+  }
 }
 
 async function markAllPresent() {
