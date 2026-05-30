@@ -487,7 +487,7 @@ class LivenessEngine {
               const distRight = dist2D(noseBridge, cheekRight);
               const ratio = distLeft / (distRight + 1e-6);
               
-              if (ratio < 0.65) {
+              if (ratio > 1.30) {
                 completed = true;
                 resolve({ passed: true });
                 return;
@@ -500,7 +500,7 @@ class LivenessEngine {
               const distRight = dist2D(noseBridge, cheekRight);
               const ratio = distLeft / (distRight + 1e-6);
               
-              if (ratio > 1.54) {
+              if (ratio < 0.75) {
                 completed = true;
                 resolve({ passed: true });
                 return;
