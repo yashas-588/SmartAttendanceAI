@@ -108,9 +108,9 @@ def verify_challenge_token(token: str, uid: str, session_id: str, device_fingerp
             return False, "Malformed challenge token", []
         ts_str, challenge_seq_str, sig = parts
         ts = int(ts_str)
-        # 90 seconds limit for challenge verification
-        if time.time() - ts > 90:
-            return False, "Challenge token expired (90s limit)", []
+        # 40 seconds limit for challenge verification
+        if time.time() - ts > 40:
+            return False, "Challenge token expired (40s limit)", []
         
         payload = f"{uid}:{session_id}:{ts}:{challenge_seq_str}:{device_fingerprint}"
         expected = hmac.new(_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
@@ -128,22 +128,71 @@ def verify_challenge_token(token: str, uid: str, session_id: str, device_fingerp
 #  SESSION CRUD
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_session(db, teacher_id: str, class_id: str, subject: str,
-                   duration_minutes: int, location: dict, location_radius: int) -> dict:
+def _parse_class_id(class_id: str) -> tuple[str, str, str]:
     """
-    Create a new attendance session. Enforces one active session per teacher.
+    Parse class_id (e.g. 'ISE 4A', 'CS-A Sem 5', 'CSE 6B') into (department, semester, section).
+    """
+    if not class_id:
+        return "", "", ""
+    import re
+    val = class_id.strip()
+    dept = ""
+    sem = ""
+    sec = ""
+
+    # Match department
+    match_dept = re.match(r"^([a-zA-Z]+)", val)
+    if match_dept:
+        dept = match_dept.group(1).upper()
+    
+    # Match semester digit
+    match_sem = re.search(r"(\d+)", val)
+    if match_sem:
+        sem = match_sem.group(1)
+        
+    # Match section
+    match_sec = re.search(r"(?:Sem\s*\d+\s+([a-zA-Z]))|(?:Sem\s*([a-zA-Z])\s*\d+)|(?:[a-zA-Z]+-\s*([a-zA-Z]))|(?:\d+([a-zA-Z]))", val)
+    if match_sec:
+        sec = next((g for g in match_sec.groups() if g), "").upper()
+    else:
+        match_sec_fb = re.search(r"\s+([a-zA-Z])\b", val)
+        if match_sec_fb:
+            sec = match_sec_fb.group(1).upper()
+            
+    return dept, sem, sec
+
+
+def create_session(db, teacher_id: str, class_id: str, subject: str,
+                   duration_minutes: int, location: dict, location_radius: int,
+                   department: str = None, semester: str = None, section: str = None) -> dict:
+    """
+    Create a new attendance session. Enforces one active session per teacher per class/section.
     Returns the created session dict with session_id.
     """
-    # Check for existing active session from this teacher
+    # Parse class details from class_id if not explicitly provided
+    dept = (department or "").strip().upper()
+    sem = str(semester or "").strip()
+    sec = (section or "").strip().upper()
+
+    if not (dept and sem and sec) and class_id:
+        p_dept, p_sem, p_sec = _parse_class_id(class_id)
+        if not dept: dept = p_dept
+        if not sem: sem = p_sem
+        if not sec: sec = p_sec
+
+    # Check for existing active session from this teacher for this specific class
     existing = (
         db.collection("sessions")
         .where("teacher_id", "==", teacher_id)
         .where("is_active", "==", True)
+        .where("department", "==", dept)
+        .where("semester", "==", sem)
+        .where("section", "==", sec)
         .limit(1)
         .stream()
     )
     for doc in existing:
-        return {"error": "A session is already active. End it before starting a new one.", "existing_id": doc.id}
+        return {"error": f"A session for {dept} Sem {sem} Sec {sec} is already active. End it before starting a new one.", "existing_id": doc.id}
 
     now_utc = datetime.now(timezone.utc)
     expires_utc = now_utc + timedelta(minutes=duration_minutes)
@@ -160,6 +209,9 @@ def create_session(db, teacher_id: str, class_id: str, subject: str,
         "location": location,
         "location_radius": location_radius,
         "attendance_count": 0,
+        "department": dept,
+        "semester": sem,
+        "section": sec,
     }
 
     db.collection("sessions").document(session_id).set(session_data)
@@ -201,16 +253,33 @@ def send_absent_emails(db, session_id: str):
             if d.get("status") in ["Present", "Late"]:
                 present_uids.add(d.get("student_uid"))
 
+        # 2.5. Resolve session class for per-student filtering
+        session_dept = (session_data.get("department") or "").strip().lower()
+        session_sem  = str(session_data.get("semester") or "").strip()
+        session_sec  = (session_data.get("section") or "").strip().lower()
+        has_session_class = bool(session_dept and session_sem and session_sec)
+
         # 3. Compute absent list
         emails_sent = 0
         for stud in all_students:
             sdata       = stud.to_dict()
-            # Only notify for students who are fully enrolled (have uid + face)
             student_uid = sdata.get("uid")
             if not student_uid:
                 continue
             if student_uid in present_uids:
                 continue
+
+            # Class isolation: only notify students in the session's class.
+            # If session has no structured fields (legacy), include everyone.
+            if has_session_class:
+                s_dept = (sdata.get("department") or sdata.get("dept") or "").strip().lower()
+                s_sem  = str(sdata.get("semester") or "").strip()
+                s_sec  = (sdata.get("section") or "").strip().lower()
+                # Legacy student (no class data) → include (soft migration)
+                if s_dept or s_sem or s_sec:
+                    if s_dept != session_dept or s_sem != session_sem or s_sec != session_sec:
+                        continue  # different class — skip
+
 
             parent_email = (sdata.get("parent_email") or sdata.get("parentEmail") or "").strip()
             if not parent_email or "@" not in parent_email:
@@ -360,6 +429,19 @@ def validate_session(db, session_id: str) -> tuple[bool, str, dict | None]:
     return True, "Active", data
 
 
+def get_classroom_radius_from_settings(db) -> int:
+    """Read the dynamic classroom geofence radius from settings/classroom in Firestore."""
+    try:
+        doc = db.collection("settings").document("classroom").get()
+        if doc.exists:
+            d = doc.to_dict()
+            if "locationRadius" in d:
+                return int(d["locationRadius"])
+    except Exception as e:
+        print(f"Error fetching classroom radius: {e}")
+    return 10
+
+
 def get_session_status(db, session_id: str) -> dict:
     """
     Return session status with remaining seconds. Used by student polling.
@@ -376,6 +458,12 @@ def get_session_status(db, session_id: str) -> dict:
             exp = exp.replace(tzinfo=timezone.utc)
         remaining = max(0, int((exp - datetime.now(timezone.utc)).total_seconds()))
 
+    location_radius = data.get("location_radius")
+    if location_radius is None:
+        location_radius = get_classroom_radius_from_settings(db)
+    else:
+        location_radius = int(location_radius)
+
     return {
         "active": True,
         "session_id": session_id,
@@ -386,7 +474,7 @@ def get_session_status(db, session_id: str) -> dict:
         "remaining_seconds": remaining,
         "attendance_count": data.get("attendance_count", 0),
         "location": data.get("location"),
-        "location_radius": data.get("location_radius", 10),
+        "location_radius": location_radius,
     }
 
 

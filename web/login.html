@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login — Smart AI Attendance</title>
+  <title>Login — Attendance Management System</title>
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--gradient-bg); padding:20px; }
     .login-wrap { width:100%; max-width:440px; }
     .login-card { background:var(--bg-glass); backdrop-filter:blur(24px); border:1px solid var(--border-glass); border-radius:24px; padding:40px 36px; box-shadow:var(--shadow-card); }
     .login-logo { text-align:center; margin-bottom:32px; }
     .login-logo img { height:56px; border-radius:12px; box-shadow:0 0 20px rgba(56,189,248,0.4); }
-    .login-title { font-family:'Orbitron',sans-serif; font-size:22px; font-weight:700; text-align:center; background:var(--gradient-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:6px; }
+    .login-title { font-family:'Inter',sans-serif; font-size:22px; font-weight:800; text-align:center; background:var(--gradient-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:6px; }
     .login-sub { text-align:center; font-size:13px; color:var(--text-muted); margin-bottom:32px; }
 
     .tab-row { display:flex; background:rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:12px; padding:4px; margin-bottom:28px; }
@@ -59,8 +59,8 @@
 <div class="login-wrap">
   <div class="login-card">
     <div class="login-logo"><img src="logo.png" alt="Logo"></div>
-    <div class="login-title">Smart AI Attendance</div>
-    <div class="login-sub">IEEE-grade face recognition system</div>
+    <div class="login-title">Attendance Management System</div>
+    <div class="login-sub">Biometric Face Recognition Portal</div>
 
     <!-- TABS -->
     <div class="tab-row">
@@ -117,7 +117,7 @@
       </div>
       <div class="form-group">
         <label>Role</label>
-        <select id="su-role" style="padding:12px 16px; background:rgba(255,255,255,0.05);">
+        <select id="su-role" style="padding:12px 16px; background:rgba(255,255,255,0.05); border:1px solid var(--border-glass); border-radius:10px; color:var(--text-primary); font-size:14px; width:100%; outline:none;">
           <option value="student">Student</option>
           <option value="teacher">Teacher / Admin</option>
         </select>
@@ -170,10 +170,29 @@
   }
   function hideError() { document.getElementById('error-box').style.display = 'none'; }
 
+  function showToast(msg, type = 'info', duration = 5000) {
+    let tc = document.getElementById('toast-container');
+    if (!tc) { tc = document.createElement('div'); tc.id = 'toast-container'; document.body.appendChild(tc); }
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<span>${msg}</span><span class="toast-close" onclick="this.parentElement.remove()">X</span>`;
+    tc.appendChild(t);
+    setTimeout(() => t.remove(), duration);
+  }
+
   function setLoading(id, loading, label) {
     const btn = document.getElementById(id);
     btn.disabled = loading;
     btn.innerHTML = loading ? '<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:0 auto;"></div>' : label;
+  }
+
+  // ── Unified role-based redirect (handles all 3 roles) ─────────────────────
+  function redirectByRole(role) {
+    if (role === 'admin' || role === 'teacher') {
+      window.location.replace('admin/dashboard.html');
+    } else {
+      window.location.replace('student/mark.html');
+    }
   }
 
   async function doLogin() {
@@ -186,17 +205,29 @@
       const cred = await auth.signInWithEmailAndPassword(email, pass);
       let snap = await db.collection('users').doc(cred.user.uid).get();
       if (!snap.exists) {
-        // Default to student if registered via Firebase Console to prevent unauthorized teacher access
+        // No Firestore profile found. This means the account was created directly
+        // in the Firebase Console (not via this signup form). We do NOT assume
+        // a role — we create a minimal profile with role 'student' as the safe
+        // default, but log a warning so admins can fix it in Firestore manually.
+        console.warn('[Auth] No users doc found for', cred.user.uid, '— creating default student profile. Update role in Firestore if this is a Teacher/Admin.');
         await db.collection('users').doc(cred.user.uid).set({
           email: cred.user.email,
+          name: cred.user.displayName || '',
           role: 'student',
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          _autoCreated: true  // flag so you can find and fix these in Firestore
         });
         snap = await db.collection('users').doc(cred.user.uid).get();
       }
       const data = snap.data();
-      const role = (data.role === 'admin') ? 'teacher' : (data.role || 'student');
-      
+      // Normalise role: accept 'admin', 'teacher', 'student' explicitly.
+      // Any unrecognised value is treated as 'student' (safe default).
+      const rawRole = data.role || 'student';
+      const role = ['admin', 'teacher', 'student'].includes(rawRole) ? rawRole : 'student';
+      if (!['admin', 'teacher', 'student'].includes(rawRole)) {
+        console.warn('[Auth] Unknown role value in Firestore:', rawRole, '— defaulting to student.');
+      }
+
       // If student has mustChangePassword flag, clear it — they've already set
       // their own password via the Firebase reset email link before logging in.
       if (role === 'student' && data.mustChangePassword === true) {
@@ -212,8 +243,8 @@
           }
         } catch(_) { /* students collection write restricted to teachers — silently skip */ }
       }
-      
-      window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
+
+      redirectByRole(role);
     } catch(e) {
       const authErrors = ['auth/wrong-password', 'auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-email'];
       showError(authErrors.includes(e.code)
@@ -227,7 +258,7 @@
     const name  = document.getElementById('su-name').value.trim();
     const email = document.getElementById('su-email').value.trim();
     const pass  = document.getElementById('su-pass').value;
-    const role  = document.getElementById('su-role').value;
+    const role  = document.getElementById('su-role').value;  // 'student' | 'teacher' | 'admin'
     const sid   = document.getElementById('su-sid').value.trim();
     if (!name || !email || !pass) { showError('Please fill in all required fields.'); return; }
     if (pass.length < 8) { showError('Password must be at least 8 characters.'); return; }
@@ -236,7 +267,7 @@
     try {
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
 
-      // Build user profile
+      // Build user profile — role is stored exactly as selected ('student'|'teacher'|'admin')
       const userData = {
         name, email, role,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -246,12 +277,14 @@
       }
 
       // Save to users collection (role source of truth)
+      // IMPORTANT: This must complete before redirect to avoid the login fallback
+      // creating a new doc with role:'student' on next login.
       await db.collection('users').doc(cred.user.uid).set(userData);
 
       if (role === 'student') {
         // Find existing admin-created student record by email to link face descriptors
         const studentQuery = await db.collection('students').where('email', '==', email).get();
-        
+
         if (!studentQuery.empty) {
           // Link existing document to this auth user
           const studentDocId = studentQuery.docs[0].id;
@@ -273,8 +306,8 @@
         }
       }
 
-      // Route to correct portal
-      window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
+      // Route to correct portal using unified redirect
+      redirectByRole(role);
     } catch(e) {
       showError(e.code === 'auth/email-already-in-use' ? 'Email already registered.' : e.message);
     } finally { setLoading('signup-btn', false, '<i data-lucide="user-plus"></i> Create Account'); lucide.createIcons(); }
@@ -284,46 +317,42 @@
     const email = document.getElementById('login-email').value.trim();
     if (!email) { showError('Enter your email address first.'); return; }
     await auth.sendPasswordResetEmail(email);
-    alert('Password reset email sent!');
+    showToast('Password reset email sent!', 'success');
   }
 
-  // If already logged in, redirect
+  // ── Safe auto-redirect for already-authenticated users ─────────────────────
+  // Fires when the login page loads and a Firebase session already exists
+  // (e.g. user navigates back to /login.html mid-session or after a page refresh).
+  //
+  // CRITICAL — what this listener must NOT do:
+  //   createUserWithEmailAndPassword() also triggers onAuthStateChanged, meaning
+  //   this fires mid-doSignup() BEFORE doSignup() has written the Firestore users doc.
+  //   Any Firestore write here (especially role:'student') would race with doSignup()'s
+  //   own write and non-deterministically overwrite the teacher role.
+  //
+  // Rule: this listener is READ-ONLY. It never creates or modifies Firestore documents.
+  //   • Profile creation → doSignup() exclusively (Line 268–310).
+  //   • Missing-doc fallback on sign-in → doLogin() explicitly (Line 207–220).
   auth.onAuthStateChanged(async user => {
-    if (user) {
-      try {
-        let snap = await db.collection('users').doc(user.uid).get();
-        if (!snap.exists) {
-          // Default to student if registered via Firebase Console to prevent unauthorized teacher access
-          await db.collection('users').doc(user.uid).set({
-            email: user.email,
-            role: 'student',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          snap = await db.collection('users').doc(user.uid).get();
-        }
-        const data = snap.data();
-        const role = (data.role === 'admin') ? 'teacher' : (data.role || 'student');
-        
-        // If student has mustChangePassword flag, clear it — they've already set
-        // their own password via the Firebase reset email link before logging in.
-        if (role === 'student' && data.mustChangePassword === true) {
-          await db.collection('users').doc(user.uid).update({
-            mustChangePassword: false,
-            passwordLastChangedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          // Try to update students collection accountStatus (may fail if rules restrict student writes)
-          try {
-            const studentSnap = await db.collection('students').where('uid', '==', user.uid).limit(1).get();
-            if (!studentSnap.empty) {
-              await studentSnap.docs[0].ref.update({ accountStatus: 'Active' });
-            }
-          } catch(_) { /* students collection write restricted to teachers — silently skip */ }
-        }
-        
-        window.location.replace(role === 'teacher' ? 'admin/dashboard.html' : 'student/mark.html');
-      } catch(e) {
-        console.error("Auth state change redirect error:", e);
+    if (!user) return;
+    try {
+      const snap = await db.collection('users').doc(user.uid).get();
+      if (!snap.exists) {
+        // No Firestore profile yet. Two valid cases:
+        //   A) doSignup() is mid-flight — it will write the profile and redirect itself.
+        //   B) Console-created account — user needs to sign in via doLogin() which
+        //      handles the missing-doc case and creates a minimal profile there.
+        // Either way: do NOT write anything here. Return and let the active flow complete.
+        console.warn('[Auth] onAuthStateChanged: no users doc for', user.uid,
+          '— skipping (doSignup in progress or Console account). No Firestore write performed.');
+        return;
       }
+      const data = snap.data();
+      const rawRole = data.role || 'student';
+      const role = ['admin', 'teacher', 'student'].includes(rawRole) ? rawRole : 'student';
+      redirectByRole(role);
+    } catch(e) {
+      console.error('[Auth] onAuthStateChanged redirect error:', e);
     }
   });
 

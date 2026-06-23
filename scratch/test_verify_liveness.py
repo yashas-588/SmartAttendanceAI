@@ -147,3 +147,22 @@ verify_data = {
 verify_res = requests.post(f"{BASE_URL}/api/verify-liveness", headers=headers, json=verify_data)
 print(f"Verify Liveness Status: {verify_res.status_code}")
 print(f"Response Payload: {verify_res.text}")
+
+if verify_res.status_code == 200:
+    liveness_token = verify_res.json().get("token")
+    
+    # 7. Mark Attendance
+    print("\n[6] Calling mark-attendance...")
+    mark_data = {
+        "session_id": session_id,
+        "liveness_token": liveness_token,
+        "matched_name": "Yashas",
+        "confidence": 0.95,
+        "lat": None,
+        "lon": None,
+        "liveness_score": 100,
+        "gps_accuracy": None
+    }
+    mark_res = requests.post(f"{BASE_URL}/api/mark-attendance", headers=headers, json=mark_data)
+    print(f"Mark Attendance Status: {mark_res.status_code}")
+    print(f"Response Payload: {mark_res.text}")

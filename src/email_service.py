@@ -106,12 +106,12 @@ def _base_html(content: str) -> str:
 <body>
 <div class="wrapper">
   <div class="header">
-    <h1>Smart AI Attendance</h1>
+    <h1>Attendance Management System</h1>
     <p>Automated Notification System</p>
   </div>
   <div class="body">{content}</div>
   <div class="footer">
-    <p>This is an automated message from the Smart AI Attendance System. Please do not reply to this email.</p>
+    <p>This is an automated message from the Attendance Management System. Please do not reply to this email.</p>
   </div>
 </div>
 </body>
@@ -168,7 +168,7 @@ def send_student_welcome(
         Hi <strong>{student_name}</strong>,
     </p>
     <p style="color:#334155;font-size:15px;line-height:1.7;margin:0 0 20px;">
-        Your Smart AI Attendance account has been created.
+        Your Attendance Management System account has been created.
         You will shortly receive a separate email with a link to set up your password.
     </p>
     <p style="color:#334155;font-size:14px;line-height:1.7;margin:0 0 16px;">
@@ -179,7 +179,7 @@ def send_student_welcome(
         Use this link only during active class sessions authorised by your teacher.
     </p>
     """
-    email_subject = "Your Smart AI Attendance Account is Ready"
+    email_subject = "Your Attendance Management System Account is Ready"
     return _send(student_email, email_subject, _base_html(content))
 
 
@@ -196,7 +196,7 @@ def send_student_onboarding_email(
         Hi <strong>{student_name}</strong>,
     </p>
     <p style="color:#334155;font-size:15px;line-height:1.7;margin:0 0 20px;">
-        Your Smart AI Attendance student login has been successfully created.
+        Your Attendance Management System student login has been successfully created.
         To set up your password and log in, please click the button below:
     </p>
     <a class="btn" href="{reset_link}" style="background:#38bdf8;color:#0f172a;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;display:inline-block;">Set Up Password</a>
@@ -205,7 +205,7 @@ def send_student_onboarding_email(
         <span style="word-break:break-all;color:#38bdf8;">{reset_link}</span>
     </p>
     """
-    email_subject = "Set Up Your Smart AI Attendance Account"
+    email_subject = "Set Up Your Attendance Management System Account"
     return _send(student_email, email_subject, _base_html(content))
 
 

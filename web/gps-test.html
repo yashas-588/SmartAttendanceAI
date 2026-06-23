@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Standalone GPS Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 30px;
+      background-color: #0f172a;
+      color: #f1f5f9;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 24px;
+      border-bottom: 2px solid #334155;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .panel {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    }
+    .btn {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 15px;
+      transition: background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: #2563eb;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #334155;
+    }
+    .row:last-child {
+      border-bottom: none;
+    }
+    .label {
+      font-weight: 600;
+      color: #94a3b8;
+    }
+    .value {
+      font-family: monospace;
+      color: #38bdf8;
+      word-break: break-all;
+    }
+    .status-pass { color: #4ade80 !important; }
+    .status-fail { color: #f87171 !important; }
+    .log-area {
+      background-color: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 15px;
+      font-family: monospace;
+      font-size: 13px;
+      height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      color: #a7f3d0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Standalone GPS Diagnostic</h1>
+  
+  <div class="panel">
+    <button class="btn" id="start-test">Start GPS Request</button>
+    
+    <div class="row">
+      <span class="label">API Support:</span>
+      <span class="value" id="gps-supported">—</span>
+    </div>
+    <div class="row">
+      <span class="label">Permission State:</span>
+      <span class="value" id="gps-permission">—</span>
+    </div>
+    <div class="row">
+      <span class="label">Latitude:</span>
+      <span class="value" id="gps-lat">—</span>
+    </div>
+    <div class="row">
+      <span class="label">Longitude:</span>
+      <span class="value" id="gps-lon">—</span>
+    </div>
+    <div class="row">
+      <span class="label">Accuracy:</span>
+      <span class="value" id="gps-accuracy">—</span>
+    </div>
+    <div class="row">
+      <span class="label">Error Code:</span>
+      <span class="value" id="gps-err-code">—</span>
+    </div>
+    <div class="row">
+      <span class="label">Error Message:</span>
+      <span class="value" id="gps-err-msg">—</span>
+    </div>
+  </div>
+
+  <h2>Console Logs</h2>
+  <div class="log-area" id="log-box">Console initialized. Ready.</div>
+
+  <script>
+    const logBox = document.getElementById('log-box');
+    function log(msg) {
+      console.log(msg);
+      logBox.textContent += '\n' + new Date().toISOString().split('T')[1].slice(0,-1) + ': ' + msg;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // Check support
+    const supported = !!navigator.geolocation;
+    document.getElementById('gps-supported').textContent = supported ? 'Supported' : 'Not Supported';
+    document.getElementById('gps-supported').className = 'value ' + (supported ? 'status-pass' : 'status-fail');
+    log(`Geolocation API supported: ${supported}`);
+
+    // Query Permission State
+    async function queryPermission() {
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const res = await navigator.permissions.query({ name: 'geolocation' });
+          document.getElementById('gps-permission').textContent = res.state;
+          log(`[Permission Check] state = ${res.state}`);
+          res.onchange = () => {
+            document.getElementById('gps-permission').textContent = res.state;
+            log(`[Permission Check Change] state = ${res.state}`);
+          };
+        } catch (e) {
+          log(`Error querying permission: ${e.message}`);
+        }
+      } else {
+        log('navigator.permissions not supported in this browser.');
+      }
+    }
+    queryPermission();
+
+    document.getElementById('start-test').addEventListener('click', () => {
+      log('Starting GPS request sequence...');
+      
+      let hasRetried = false;
+
+      const attemptGPS = (highAccuracy) => {
+        log(`[GPS_TRACE] Before Geolocation request: highAccuracy=${highAccuracy}, timeout=30000ms`);
+        
+        // Log permission state from query right before request
+        if (navigator.permissions && navigator.permissions.query) {
+          navigator.permissions.query({ name: 'geolocation' }).then(perm => {
+            log(`[GPS_TRACE] Permission state query: state=${perm.state}`);
+            document.getElementById('gps-permission').textContent = perm.state;
+          }).catch(e => {
+            log(`[GPS_TRACE] Permission query error: ${e.message}`);
+          });
+        }
+
+        const options = { enableHighAccuracy: highAccuracy, timeout: 30000, maximumAge: 0 };
+        
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            log(`[GPS_TRACE] Success Callback executed.`);
+            log(`[GPS_TRACE] Latitude: ${pos.coords.latitude}`);
+            log(`[GPS_TRACE] Longitude: ${pos.coords.longitude}`);
+            log(`[GPS_TRACE] Accuracy: ${pos.coords.accuracy}m`);
+
+            document.getElementById('gps-lat').textContent = pos.coords.latitude;
+            document.getElementById('gps-lon').textContent = pos.coords.longitude;
+            document.getElementById('gps-accuracy').textContent = `${pos.coords.accuracy}m`;
+            
+            document.getElementById('gps-lat').className = 'value status-pass';
+            document.getElementById('gps-lon').className = 'value status-pass';
+            document.getElementById('gps-accuracy').className = 'value status-pass';
+            
+            document.getElementById('gps-err-code').textContent = 'None';
+            document.getElementById('gps-err-msg').textContent = 'None';
+          },
+          err => {
+            log(`[GPS_TRACE] Error Callback executed. Code: ${err.code}, Msg: ${err.message}`);
+            
+            if ((err.code === err.TIMEOUT || err.code === 3 || err.message.toLowerCase().includes('timeout')) && !hasRetried) {
+              hasRetried = true;
+              log(`[GPS_TRACE] Timeout occurred. Retrying once with highAccuracy=false fallback...`);
+              attemptGPS(false);
+            } else {
+              document.getElementById('gps-err-code').textContent = err.code;
+              document.getElementById('gps-err-msg').textContent = err.message;
+              
+              document.getElementById('gps-err-code').className = 'value status-fail';
+              document.getElementById('gps-err-msg').className = 'value status-fail';
+              
+              document.getElementById('gps-lat').textContent = '—';
+              document.getElementById('gps-lon').textContent = '—';
+              document.getElementById('gps-accuracy').textContent = '—';
+            }
+          },
+          options
+        );
+      };
+
+      attemptGPS(true);
+    });
+  </script>
+</body>
+</html>

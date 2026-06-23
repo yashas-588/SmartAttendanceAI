@@ -1,9 +1,9 @@
 /* =============================================
-   SMART ATTENDANCE AI — GLOBAL STYLES
-   Futuristic Dark Theme + Glassmorphism
+   ATTENDANCE MANAGEMENT SYSTEM — GLOBAL STYLES
+   Professional Dark Theme + Subtle Glassmorphism
    ============================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 :root {
   --bg-primary: #020817;
@@ -11,7 +11,7 @@
   --bg-card: rgba(13, 21, 38, 0.7);
   --bg-glass: rgba(255, 255, 255, 0.04);
   --border-glass: rgba(255, 255, 255, 0.08);
-  --border-neon: rgba(56, 189, 248, 0.3);
+  --border-neon: rgba(56, 189, 248, 0.15);
 
   --neon-blue: #38bdf8;
   --neon-purple: #a78bfa;
@@ -27,7 +27,7 @@
   --gradient-primary: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
   --gradient-card: linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(167,139,250,0.1) 100%);
   --gradient-bg: radial-gradient(ellipse at top, #0f1f3d 0%, #020817 60%);
-  --shadow-neon: 0 0 20px rgba(56, 189, 248, 0.15), 0 0 40px rgba(56, 189, 248, 0.05);
+  --shadow-neon: 0 4px 20px rgba(56, 189, 248, 0.06);
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255,255,255,0.05) inset;
 
   --sidebar-width: 260px;
@@ -98,7 +98,7 @@ body {
   transition: left 0.5s;
 }
 .btn-primary:hover::before { left: 100%; }
-.btn-primary:hover { transform: scale(1.04); box-shadow: 0 0 25px rgba(56,189,248,0.5); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3); }
 
 .btn-secondary {
   background: var(--bg-glass);
@@ -179,8 +179,8 @@ select option { background: #0d1526; }
 
 /* ─── GLOW PULSE ANIMATION ───────────────────── */
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 10px rgba(56,189,248,0.3); }
-  50% { box-shadow: 0 0 30px rgba(56,189,248,0.6), 0 0 60px rgba(56,189,248,0.2); }
+  0%, 100% { box-shadow: 0 0 8px rgba(56,189,248,0.15); }
+  50% { box-shadow: 0 0 16px rgba(56,189,248,0.3); }
 }
 @keyframes float {
   0%, 100% { transform: translateY(0); }
@@ -341,3 +341,61 @@ tbody tr:hover { background: rgba(56,189,248,0.04); }
 .menu-icon .lucide { width: 20px; height: 20px; }
 .stat-icon .lucide { width: 28px; height: 28px; }
 .r-icon .lucide { width: 36px; height: 36px; stroke: var(--neon-purple); }
+
+/* ─── CROSS-PLATFORM MOBILE & RESPONSIVE UPGRADES ─── */
+.mob-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 20px;
+  padding: 8px;
+  margin-right: 8px;
+  border-radius: 8px;
+  transition: var(--transition);
+  align-items: center;
+  justify-content: center;
+}
+.mob-menu-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--neon-blue);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 8, 23, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 95;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 768px) {
+  .mob-menu-btn {
+    display: inline-flex !important;
+  }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: var(--transition);
+    z-index: 100;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 5px 0 25px rgba(2, 8, 23, 0.5);
+  }
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+}

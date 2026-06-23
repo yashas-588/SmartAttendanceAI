@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Scan — Smart AI Attendance</title>
+  <title>Attendance Monitor — Attendance Management System</title>
   <link rel="stylesheet" href="../style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { display:flex; min-height:100vh; }
     .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
@@ -30,7 +30,7 @@
     .feed-header h3 { font-size:15px; font-weight:700; }
     .feed-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border-glass); }
     .fs { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:10px; padding:10px 12px; }
-    .fs-num { font-family:'Orbitron',sans-serif; font-size:20px; font-weight:700; }
+    .fs-num { font-family:'Inter',sans-serif; font-size:20px; font-weight:700; }
     .fs-lbl { font-size:11px; color:var(--text-muted); }
     .feed-list { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
     .fi { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; animation:slideInLeft .3s ease; }
@@ -49,7 +49,7 @@
   <script src="../firebase-config.js"></script>
   <script src="../js/face-engine.js?v=2.1"></script>
   <script src="../js/liveness.js?v=2.2"></script>
-  <script src="../js/auth-guard.js?v=2.1"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -58,12 +58,12 @@
 <div class="main-content">
   <header class="topbar">
     <div style="display:flex;align-items:center;gap:12px;">
-      <h1 style="font-size:18px;font-weight:700;">Live Face Scan</h1>
+      <h1 style="font-size:18px;font-weight:700;">Attendance Monitor</h1>
       <span class="badge badge-red" style="animation:blink 1s infinite;font-size:10px;">LIVE</span>
     </div>
     <div style="display:flex;gap:10px;">
       <button class="btn-secondary" onclick="toggleScan()" id="toggle-btn"><i data-lucide="pause"></i> Pause</button>
-      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);align-self:center;"></span>
+      <span id="clock" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--neon-blue);align-self:center;"></span>
     </div>
   </header>
 
@@ -78,7 +78,7 @@
         <div style="font-size:24px;" id="st-icon"><i data-lucide="loader" style="width:24px;height:24px;"></i></div>
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:700;" id="st-main">Initializing...</div>
-          <div style="font-size:12px;color:var(--text-muted);" id="st-detail">Loading FaceNet-128 models</div>
+          <div style="font-size:12px;color:var(--text-muted);" id="st-detail">Loading face recognition engines</div>
         </div>
         <div class="spinner" id="st-spin"></div>
       </div>
@@ -114,7 +114,7 @@ document.addEventListener('authReady', async () => {
   lucide.createIcons();
   setInterval(() => { const el = document.getElementById('clock'); if(el) el.textContent = new Date().toLocaleTimeString(); }, 1000);
 
-  setStatus('loading','Loading AI models...','FaceNet-128 + SSD MobileNet + TinyFaceDetector');
+  setStatus('loading','Loading models...','Face Recognition & Biometrics System');
   await faceEng.loadModels(msg => setStatus('loading', msg, 'Please wait...'));
   const n = await faceEng.loadFromFirestore();
   setStatus('ready', `Ready — ${n} students loaded`, 'Scanning for faces every 2 seconds');
@@ -126,9 +126,34 @@ document.addEventListener('authReady', async () => {
 
 async function startCamera() {
   const v = document.getElementById('live-video');
-  const s = await navigator.mediaDevices.getUserMedia({ video:{ width:1280, height:720 }, audio:false });
-  v.srcObject = s;
-  await new Promise(r => { v.onloadedmetadata = r; setTimeout(r, 2000); });
+  const constraintsList = [
+    { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+    { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+    { video: true, audio: false }
+  ];
+
+  let lastError = null;
+  for (const constraints of constraintsList) {
+    try {
+      console.log('Attempting camera access in live.html with constraints:', constraints);
+      const s = await navigator.mediaDevices.getUserMedia(constraints);
+      v.srcObject = s;
+      await new Promise(r => {
+        v.onloadedmetadata = () => { 
+          v.play().catch(e => console.warn('video.play failed inside live.html:', e)); 
+        };
+        v.onplaying = r;
+        setTimeout(r, 2000);
+      });
+      console.log('Camera initialized successfully in live.html');
+      return;
+    } catch(e) {
+      console.warn('Camera constraints failed in live.html:', constraints, e);
+      lastError = e;
+    }
+  }
+
+  showToast('Camera error: ' + (lastError ? lastError.message : 'Unknown error'), 'error');
 }
 
 async function doDetect() {
@@ -146,7 +171,7 @@ async function doDetect() {
       setStatus('scanning','Scanning...','No faces detected'); detecting=false; return;
     }
 
-    setStatus('detecting', `${results.length} face${results.length>1?'s':''} detected`, 'Running FaceNet-128 recognition...');
+    setStatus('detecting', `${results.length} face${results.length>1?'s':''} detected`, 'Running biometric matching...');
 
     for (const { box, match } of results) {
       const scaleX = canvas.width / video.videoWidth, scaleY = canvas.height / video.videoHeight;
@@ -195,7 +220,7 @@ async function markPresent(match) {
   await db.collection('attendance').doc(docId).set({
     studentId: sid, name: match.name, date: TODAY,
     time: now.toLocaleTimeString('en-IN'), status: 'Present',
-    method: 'AI Live Scan', confidence: match.confidence,
+    method: 'Face Recognition Monitor', confidence: match.confidence,
     timestamp: firebase.firestore.FieldValue.serverTimestamp()
   });
   showToast(`${match.name} marked present (${Math.round(match.confidence*100)}%)`, 'success');
@@ -212,7 +237,7 @@ function subscribeToday() {
       list.innerHTML = recs.slice(0,20).map(r => `
         <div class="fi present">
           <div class="fi-av">${(r.name||'?')[0].toUpperCase()}</div>
-          <div><div class="fi-name">${r.name}</div><div class="fi-meta">${r.method||'AI'} · ${r.confidence?Math.round(r.confidence*100)+'%':''}</div></div>
+          <div><div class="fi-name">${r.name}</div><div class="fi-meta">${r.method||'Face Recognition'} · ${r.confidence?Math.round(r.confidence*100)+'%':''}</div></div>
           <div class="fi-time">${r.time||''}</div>
         </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No attendance yet</div>';
       lucide.createIcons();
