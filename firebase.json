@@ -16,8 +16,8 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "smart-attendance-api",
-          "region": "us-central1"
+          "serviceId": "smart-attendance-ai",
+          "region": "asia-south1"
         }
       }
     ]

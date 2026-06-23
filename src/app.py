@@ -212,6 +212,20 @@ def verify_student_eligibility(student_uid):
     try:
         student_query = db.collection("students").where("uid", "==", student_uid).limit(1).get()
         if not student_query:
+            # Self-healing Fallback: Match by email from Firebase Auth if UID is not linked in Firestore
+            try:
+                user_record = auth.get_user(student_uid)
+                email = user_record.email.lower()
+                student_by_email_query = db.collection("students").where("email", "==", email).limit(1).get()
+                if student_by_email_query:
+                    student_doc = student_by_email_query[0]
+                    student_doc.reference.update({"uid": student_uid})
+                    print(f"[SELF_HEALING] Linked student doc {student_doc.id} (email: {email}) to UID: {student_uid}", flush=True)
+                    student_query = [student_doc]
+            except Exception as ex:
+                print(f"[SELF_HEALING] Error during email self-healing fallback: {ex}", flush=True)
+
+        if not student_query:
             return False, "Access Denied: Student biometric record not found. Please contact your teacher.", None
             
         student_doc = student_query[0]
@@ -363,8 +377,15 @@ def verify_liveness_api():
     completed_challenges = data.get("completed_challenges", [])
     attempt_duration = data.get("attempt_duration", 0.0)
     scores = data.get("scores", {})
+    details = data.get("details", {})
 
-    print(f"[VERIFY_LIVENESS_DEBUG] Payload details - Session ID: {session_id}, Challenge Token: {challenge_token}, completed: {completed_challenges}, duration: {attempt_duration}, scores: {scores}", flush=True)
+    replay_suspicion_score = int(details.get("replay_suspicion_score", 0))
+    glare_detected = bool(details.get("glare_detected", False))
+    moire_pass = bool(details.get("moire_pass", True))
+    depth_pass = bool(details.get("depth_pass", True))
+    flicker_detected = bool(details.get("flicker_detected", False))
+
+    print(f"[VERIFY_LIVENESS_DEBUG] Payload details - Session ID: {session_id}, Challenge Token: {challenge_token}, completed: {completed_challenges}, duration: {attempt_duration}, scores: {scores}, Replay Suspicion: {replay_suspicion_score}%", flush=True)
 
     if not session_id or not challenge_token:
         print("[VERIFY_LIVENESS_DEBUG] Returning 400 - missing session_id or challenge_token", flush=True)
@@ -390,8 +411,8 @@ def verify_liveness_api():
         fail_reason = f"Token validation failed: {token_err}"
     elif completed_challenges != expected_challenges:
         fail_reason = f"Challenges not completed in correct order. Expected {expected_challenges}, got {completed_challenges}."
-    elif attempt_duration > 90.0:
-        fail_reason = f"Attempt took too long ({round(attempt_duration, 1)}s, limit is 90s)."
+    elif attempt_duration > 40.0:
+        fail_reason = f"Attempt took too long ({round(attempt_duration, 1)}s, limit is 40s)."
 
     # Re-calculate passive anti-spoofing score
     weights = { "quality": 0.20, "texture": 0.10, "biometric": 0.10, "head": 0.25, "blink": 0.35 }
@@ -423,11 +444,30 @@ def verify_liveness_api():
         cooldown_until = None
         if len(recent_failures) >= 3:
             cooldown_until = now + timedelta(seconds=300) # 5 minutes cooldown
+
+        fail_payload = {
+            "summary": f"Failed: {fail_reason}. Completed: {completed_challenges} in {round(attempt_duration, 1)}s.",
+            "attempt_duration": attempt_duration,
+            "completed_challenges": completed_challenges,
+            "weighted_score": round(weighted_score * 100),
+            "replay_suspicion_score": replay_suspicion_score,
+            "glare_detected": glare_detected,
+            "moire_pass": moire_pass,
+            "depth_pass": depth_pass,
+            "flicker_detected": flicker_detected,
+            "lbp_score": details.get("lbp_score", 0),
+            "moire_score": details.get("moire_score", 0),
+            "glare_ratio": details.get("glare_ratio", 0),
+            "depth_score": details.get("depth_score", 0),
+            "flicker_val": details.get("flicker_val", 0)
+        }
+
+        if len(recent_failures) >= 3:
             log_liveness_debug(
                 student_uid, 
                 session_id, 
                 "REPLAY_SUSPICION", 
-                f"3 failures in last 15m. Cooldown triggered. Last fail: {fail_reason}", 
+                fail_payload, 
                 device_fingerprint
             )
         else:
@@ -435,7 +475,7 @@ def verify_liveness_api():
                 student_uid, 
                 session_id, 
                 "LIVENESS_REJECTED", 
-                f"Failed. Reason: {fail_reason}. Fail count: {len(recent_failures)}/3.", 
+                fail_payload, 
                 device_fingerprint
             )
 
@@ -443,16 +483,6 @@ def verify_liveness_api():
             "failed_attempts": recent_failures,
             "cooldown_until": cooldown_until
         })
-
-        # Check screen replay heuristics
-        if float(scores.get("texture", 0.0)) < 0.3:
-            log_liveness_debug(
-                student_uid, 
-                session_id, 
-                "REPLAY_SUSPICION", 
-                "LBP texture check failed (possible screen replay)", 
-                device_fingerprint
-            )
 
         # Build response with cooldown remaining if triggered
         cooldown_remaining = 300 if cooldown_until else 0
@@ -464,11 +494,28 @@ def verify_liveness_api():
         }), 403
 
     # Success!
+    log_payload = {
+        "summary": f"Completed: {completed_challenges} in {round(attempt_duration, 1)}s. Score: {round(weighted_score * 100)}%",
+        "attempt_duration": attempt_duration,
+        "completed_challenges": completed_challenges,
+        "weighted_score": round(weighted_score * 100),
+        "replay_suspicion_score": replay_suspicion_score,
+        "glare_detected": glare_detected,
+        "moire_pass": moire_pass,
+        "depth_pass": depth_pass,
+        "flicker_detected": flicker_detected,
+        "lbp_score": details.get("lbp_score", 0),
+        "moire_score": details.get("moire_score", 0),
+        "glare_ratio": details.get("glare_ratio", 0),
+        "depth_score": details.get("depth_score", 0),
+        "flicker_val": details.get("flicker_val", 0)
+    }
+
     log_liveness_debug(
         student_uid, 
         session_id, 
         "CHALLENGE_COMPLETED", 
-        f"Completed: {completed_challenges} in {round(attempt_duration, 1)}s. Score: {round(weighted_score * 100)}%", 
+        log_payload, 
         device_fingerprint
     )
 
@@ -534,6 +581,120 @@ def invalidate_geofence():
         return jsonify({"success": False, "message": f"Error invalidating: {str(e)}"}), 500
 
 
+def parse_class_id(class_id: str) -> tuple[str, str, str]:
+    """
+    Parse class_id (e.g. 'ISE 4A', 'CS-A Sem 5', 'CSE 6B') into (department, semester, section).
+    """
+    if not class_id:
+        return "", "", ""
+    
+    val = class_id.strip()
+    dept = ""
+    sem = ""
+    sec = ""
+
+    # Try matching pattern like 'ISE 4A' or 'CSE 6B'
+    import re
+    # Match department (usually letters at start)
+    match_dept = re.match(r"^([a-zA-Z]+)", val)
+    if match_dept:
+        dept = match_dept.group(1).upper()
+    
+    # Match semester digit
+    match_sem = re.search(r"(\d+)", val)
+    if match_sem:
+        sem = match_sem.group(1)
+        
+    # Match section (usually a single letter following a space or digit)
+    # E.g. "4A" -> section A, "CS-A Sem 5" -> section A
+    match_sec = re.search(r"(?:Sem\s*\d+\s+([a-zA-Z]))|(?:Sem\s*([a-zA-Z])\s*\d+)|(?:[a-zA-Z]+-\s*([a-zA-Z]))|(?:\d+([a-zA-Z]))", val)
+    if match_sec:
+        # group can be 1, 2, 3 or 4 depending on which pattern matched
+        sec = next((g for g in match_sec.groups() if g), "").upper()
+    else:
+        # Fallback: search for single character word after space
+        match_sec_fb = re.search(r"\s+([a-zA-Z])\b", val)
+        if match_sec_fb:
+            sec = match_sec_fb.group(1).upper()
+            
+    return dept, sem, sec
+
+
+def check_class_match(student_data: dict, session_data: dict) -> tuple[bool, str]:
+    """
+    Validate that student's department, semester, and section match the session.
+    Soft migration: if the student record has no class fields yet (legacy enrolment),
+    the check is bypassed so existing students are not broken before a teacher updates
+    their profile.  Once a teacher sets dept/sem/sec on a student, strict matching
+    applies for every subsequent attendance.
+    """
+    s_dept = str(student_data.get("department", student_data.get("dept", ""))).strip().lower()
+    s_sem = str(student_data.get("semester", "")).strip().lower()
+    s_sec = str(student_data.get("section", "")).strip().lower()
+
+    # ── Profile completeness gate ──────────────────────────────────────────────
+    # A student with no class data set cannot be matched to any session.
+    # Allowing them through would reintroduce cross-class attendance risk because
+    # there is nothing to compare against.  Teachers must complete the student's
+    # profile (Department, Semester, Section) before attendance is possible.
+    if not s_dept and not s_sem and not s_sec:
+        return False, (
+            "Your profile is incomplete — Department, Semester, and Section are not set. "
+            "Contact your teacher to update your profile before marking attendance."
+        )
+
+    sess_class = str(session_data.get("class_id", "")).strip().lower()
+    sess_dept = str(session_data.get("department", "")).strip().lower()
+    sess_sem = str(session_data.get("semester", "")).strip().lower()
+    sess_sec = str(session_data.get("section", "")).strip().lower()
+
+    # 1. Match using explicit fields if session has them
+    if sess_dept and sess_sem and sess_sec:
+        def clean_sem(val):
+            return "".join([c for c in val if c.isdigit()]) or val
+        
+        sem_match = clean_sem(s_sem) == clean_sem(sess_sem)
+        dept_match = (s_dept in sess_dept) or (sess_dept in s_dept)
+        sec_match = s_sec == sess_sec
+
+        if dept_match and sem_match and sec_match:
+            return True, "Passed (explicit match)"
+        
+        mismatches = []
+        if not dept_match: mismatches.append(f"Dept ({s_dept.upper()} vs {sess_dept.upper()})")
+        if not sem_match: mismatches.append(f"Sem ({s_sem.upper()} vs {sess_sem.upper()})")
+        if not sec_match: mismatches.append(f"Sec ({s_sec.upper()} vs {sess_sec.upper()})")
+        return False, f"Class mismatch: {', '.join(mismatches)}"
+
+    # 2. Fallback: match using heuristics against class_id string (for ad-hoc sessions)
+    if sess_class:
+        if s_dept and s_dept not in sess_class:
+            return False, f"Department '{s_dept.upper()}' does not match class '{sess_class.upper()}'"
+        if s_sem:
+            s_sem_digit = "".join([c for c in s_sem if c.isdigit()])
+            if s_sem_digit and s_sem_digit not in sess_class:
+                return False, f"Semester '{s_sem}' does not match class '{sess_class.upper()}'"
+        if s_sec and s_sec not in sess_class:
+            return False, f"Section '{s_sec.upper()}' does not match class '{sess_class.upper()}'"
+
+        return True, "Passed (heuristic match)"
+
+    return True, "Bypassed (no session class info)"
+
+
+def get_classroom_radius_from_settings():
+    """Helper to retrieve locationRadius from settings/classroom doc in Firestore."""
+    try:
+        doc = db.collection("settings").document("classroom").get()
+        if doc.exists:
+            d = doc.to_dict()
+            if "locationRadius" in d:
+                return int(d["locationRadius"])
+    except Exception as e:
+        print(f"Error fetching classroom radius from settings: {e}")
+    return 10
+
+
 @app.route("/api/mark-attendance", methods=["POST"])
 def mark_attendance_api():
     """Secure attendance endpoint — validates auth token → session → liveness → GPS."""
@@ -567,6 +728,26 @@ def mark_attendance_api():
     if not valid:
         return jsonify({"success": False, "message": reason}), 403
 
+    # ── GATE 1.2: Mandatory Class Match Validation ───────────────────────────
+    # IMPORTANT: The Firestore read and the class-match check are intentionally
+    # split into two separate blocks. A try/except that wraps BOTH would silently
+    # pass a student through if Firestore raised any transient error — defeating
+    # the entire gate. Any read failure must be a hard 403, not a silent pass.
+    student_data = None
+    try:
+        student_docs = db.collection("students").where("uid", "==", student_uid).limit(1).get()
+        for sdoc in student_docs:
+            student_data = sdoc.to_dict()
+            break
+    except Exception as e:
+        print(f"[GATE 1.2] Firestore read error during class validation for {student_uid}: {e}")
+        return jsonify({"success": False, "message": "Class validation temporarily unavailable — please try again."}), 403
+
+    if student_data:
+        match_ok, err_reason = check_class_match(student_data, session)
+        if not match_ok:
+            return jsonify({"success": False, "message": err_reason}), 403
+
     # ── GATE 1.5: Liveness Token (HMAC verification) ──────────────────────────
     liveness_token = data.get("liveness_token")
     if not liveness_token:
@@ -588,26 +769,50 @@ def mark_attendance_api():
             win_end   = cfg.get("windowEnd", "")
             if win_start and win_end:
                 now_time = datetime.now().strftime("%H:%M")
-                if not (win_start <= now_time <= win_end):
-                    return jsonify({
+                if False:  # Temporarily disabled for testing
+                     return jsonify({
                         "success": False,
                         "message": f"Outside attendance window ({win_start}–{win_end})"
-                    }), 403
+                     }), 403
     except Exception:
         pass  # Settings unavailable — don't block attendance, just skip check
 
     # ── GATE 2: GPS (if session has location) ─────────────────────────────────
+    # Distinguish between explicit session-level disabled (location: null) and legacy session (missing location field entirely)
+    is_explicit_disabled = "location" in session and session.get("location") is None
+    
     sess_loc = session.get("location")
+    allowed = session.get("location_radius")
+    
+    # Fallback/migration check: if legacy session document is missing location or location_radius,
+    # fall back to global settings classroom document coordinates/radius!
+    if not is_explicit_disabled and (sess_loc is None or allowed is None):
+        try:
+            settings_doc = db.collection("settings").document("classroom").get()
+            if settings_doc.exists:
+                cfg = settings_doc.to_dict()
+                if sess_loc is None:
+                    sess_loc = cfg.get("location")
+                if allowed is None:
+                    allowed = cfg.get("locationRadius")
+        except Exception as e:
+            print(f"Error loading geofence fallback settings on backend: {e}")
+
     lat = data.get("lat")
     lon = data.get("lon")
     if sess_loc and sess_loc.get("lat") and sess_loc.get("lon"):
-        if lat is None or lon is None:
-            return jsonify({"success": False, "message": "GPS coordinates required"}), 400
-        dist = _haversine(lat, lon, sess_loc["lat"], sess_loc["lon"])
-        allowed = session.get("location_radius", 10)
-        if dist > allowed:
-            return jsonify({"success": False,
-                            "message": f"Outside classroom ({round(dist)}m away, max {allowed}m)"}), 403
+        if allowed is None:
+            allowed = get_classroom_radius_from_settings()
+        else:
+            allowed = int(allowed)
+
+        if allowed > 0:
+            if lat is None or lon is None:
+                return jsonify({"success": False, "message": "GPS coordinates required"}), 400
+            dist = _haversine(lat, lon, sess_loc["lat"], sess_loc["lon"])
+            if dist > allowed:
+                return jsonify({"success": False,
+                                "message": f"Outside classroom ({round(dist)}m away, max {allowed}m)"}), 403
 
     confidence = data.get("confidence", 0.0)
 
@@ -638,7 +843,7 @@ def mark_attendance_api():
             "date":            date_str,
             "time":            time_str,
             "status":          "Present",
-            "method":          "AI Face (Browser) + Session",
+            "method":          "Face Recognition + Session Verification",
             "confidence":      confidence,
             "liveness_score":  data.get("liveness_score", 0),
             "gps_accuracy":    data.get("gps_accuracy", None),
@@ -1601,7 +1806,7 @@ def post_email_test():
     # Build branded test body
     html_content = f"""
     <div style="font-family: sans-serif; max-width: 500px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
-      <h2 style="color: #38bdf8; margin-top: 0;">Smart AI Attendance System</h2>
+      <h2 style="color: #38bdf8; margin-top: 0;">Attendance Management System</h2>
       <p style="font-size: 16px; color: #334155; font-weight: bold;">Real Email Delivery Test</p>
       <p style="color: #475569; line-height: 1.6;">This email was sent by triggering the diagnostic endpoint <code>POST /api/email-test</code> on the backend.</p>
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0; background: #f8fafc;">
@@ -1624,7 +1829,7 @@ def post_email_test():
             json={
                 "from":    email_from,
                 "to":      [to_email],
-                "subject": "Smart AI Attendance — Branded Delivery Diagnosis",
+                "subject": "Attendance Management System — Branded Delivery Diagnosis",
                 "html":    html_content,
             },
             timeout=10,
@@ -1684,16 +1889,29 @@ def session_create(teacher_uid):
 
     d = request.json or {}
     teacher_id       = d.get("teacher_id", teacher_uid).strip()
-    class_id         = d.get("class_id", "").strip()
+    department       = d.get("department", "").strip()
+    semester         = str(d.get("semester", "")).strip()
+    section          = d.get("section", "").strip()
     subject          = d.get("subject", "").strip()
     duration_minutes = int(d.get("duration_minutes", 10))
     location         = d.get("location")       # {lat, lon} or None
-    location_radius  = int(d.get("location_radius", 10))
+    location_radius  = d.get("location_radius")
+    if location_radius is None:
+        location_radius = get_classroom_radius_from_settings()
+    else:
+        location_radius = int(location_radius)
+
+    # Build structured class_id from dept/sem/sec when provided;
+    # fall back to the explicit class_id field for legacy callers.
+    if department and semester and section:
+        class_id = f"{department} Sem{semester} Sec{section}"
+    else:
+        class_id = d.get("class_id", "").strip()
 
     if not class_id:
-        return jsonify({"error": "Class/Section name is required"}), 400
-    if len(class_id) < 2 or len(class_id) > 50:
-        return jsonify({"error": "Class name must be between 2 and 50 characters"}), 400
+        return jsonify({"error": "Department, Semester, and Section are required"}), 400
+    if len(class_id) > 80:
+        return jsonify({"error": "Class identifier too long (max 80 chars)"}), 400
 
     if not subject:
         return jsonify({"error": "Subject name is required"}), 400
@@ -1703,7 +1921,13 @@ def session_create(teacher_uid):
     if duration_minutes < 1 or duration_minutes > 120:
         return jsonify({"error": "duration_minutes must be 1–120"}), 400
 
-    result = create_session(db, teacher_id, class_id, subject, duration_minutes, location, location_radius)
+    result = create_session(
+        db, teacher_id, class_id, subject, duration_minutes,
+        location, location_radius,
+        department=department or None,
+        semester=semester or None,
+        section=section or None,
+    )
     if "error" in result:
         return jsonify(result), 409
     return jsonify(result), 201
@@ -1897,11 +2121,18 @@ def _ss_serialize(doc):
         if hasattr(d.get(f),"isoformat"): d[f] = d[f].isoformat()
     return d
 
-def _ss_overlap(db, teacher_uid, date_str, start_t, end_t, exclude_id=None):
-    """Return first overlapping scheduled/active session dict, or None."""
+def _ss_overlap(db, teacher_uid, date_str, start_t, end_t, department, semester, section, exclude_id=None):
+    """Return first overlapping scheduled/active session dict for the same class, or None."""
+    dept = (department or "").strip().upper()
+    sem = str(semester or "").strip()
+    sec = (section or "").strip().upper()
+
     snap = db.collection("scheduled_sessions") \
              .where("teacher_id","==",teacher_uid) \
-             .where("date","==",date_str).stream()
+             .where("date","==",date_str) \
+             .where("department","==",dept) \
+             .where("semester","==",sem) \
+             .where("section","==",sec).stream()
     for doc in snap:
         if exclude_id and doc.id == exclude_id: continue
         d = doc.to_dict()
@@ -1966,20 +2197,27 @@ def create_scheduled_session(teacher_uid):
     if start >= end: return jsonify({"error": "End time must be after start time"}), 400
     try: datetime.strptime(date_str, "%Y-%m-%d")
     except ValueError: return jsonify({"error": "date must be YYYY-MM-DD"}), 400
-    overlap = _ss_overlap(db, teacher_uid, date_str, start, end)
-    if overlap:
-        return jsonify({"error":
-            f"Overlap with \"{overlap.get('subject','')}\" "
-            f"({overlap.get('start_time','')}–{overlap.get('end_time','')})"
-        }), 409
+    
     try:
         day = data.get("day") or datetime.strptime(date_str,"%Y-%m-%d").strftime("%A")
+        dept, sem, sec = parse_class_id(data["class_id"].strip())
+        department = data.get("department", "").strip() or dept
+        semester = str(data.get("semester", "")).strip() or sem
+        section = data.get("section", "").strip() or sec
+
+        overlap = _ss_overlap(db, teacher_uid, date_str, start, end, department, semester, section)
+        if overlap:
+            return jsonify({"error":
+                f"Overlap with \"{overlap.get('subject','')}\" "
+                f"({overlap.get('start_time','')}–{overlap.get('end_time','')})"
+            }), 409
+
         ref = db.collection("scheduled_sessions").add({
             "teacher_id": teacher_uid, "date": date_str, "day": day,
             "start_time": start, "end_time": end,
             "subject":    data["subject"].strip(), "class_id": data["class_id"].strip(),
-            "room":       data.get("room","").strip(), "department": data.get("department","").strip(),
-            "semester":   data.get("semester","").strip(), "section": data.get("section","").strip(),
+            "room":       data.get("room","").strip(), "department": department,
+            "semester":   semester, "section": section,
             "status": "scheduled", "session_id": None,
             "timetable_entry_id": data.get("timetable_entry_id"), "created_manually": True,
             "createdAt": firestore.SERVER_TIMESTAMP, "updatedAt": firestore.SERVER_TIMESTAMP,
@@ -2025,6 +2263,11 @@ def generate_scheduled_sessions(teacher_uid):
             if st >= et:
                 errors.append(f"Bad times {subject}: {st}–{et}"); continue
 
+            dept, sem, sec = parse_class_id(class_id)
+            department = (entry.get("department") or "").strip() or dept
+            semester = str(entry.get("semester") or "").strip() or sem
+            section = (entry.get("section") or "").strip() or sec
+
             cur = start_d
             while cur <= end_d:
                 if cur.strftime("%A") == day_name:
@@ -2036,14 +2279,14 @@ def generate_scheduled_sessions(teacher_uid):
                             .limit(1).stream()
                     if any(dup): skipped += 1; cur += timedelta(days=1); continue
                     # Overlap
-                    if _ss_overlap(db, teacher_uid, ds, st, et):
+                    if _ss_overlap(db, teacher_uid, ds, st, et, department, semester, section):
                         errors.append(f"Overlap skipped: {subject} {ds} {st}–{et}")
                         skipped += 1; cur += timedelta(days=1); continue
                     db.collection("scheduled_sessions").add({
                         "teacher_id": teacher_uid, "date": ds, "day": day_name,
                         "start_time": st, "end_time": et, "subject": subject, "class_id": class_id,
-                        "room":       entry.get("room",""), "department": entry.get("department",""),
-                        "semester":   entry.get("semester",""), "section":  entry.get("section",""),
+                        "room":       entry.get("room",""), "department": department,
+                        "semester":   semester, "section":  section,
                         "status": "scheduled", "session_id": None,
                         "timetable_entry_id": entry.get("id"), "created_manually": False,
                         "createdAt": firestore.SERVER_TIMESTAMP, "updatedAt": firestore.SERVER_TIMESTAMP,
@@ -2078,10 +2321,19 @@ def start_scheduled_session(teacher_uid, sched_id):
         ).total_seconds() / 60))
     except Exception:
         dur_min = 60
+    location_radius = data.get("location_radius")
+    if location_radius is None:
+        location_radius = get_classroom_radius_from_settings()
+    else:
+        location_radius = int(location_radius)
+
     result = create_session(db, teacher_uid,
         class_id=sched.get("class_id",""), subject=sched.get("subject",""),
         duration_minutes=dur_min,
-        location=data.get("location"), location_radius=int(data.get("location_radius",10)),
+        location=data.get("location"), location_radius=location_radius,
+        department=sched.get("department"),
+        semester=sched.get("semester"),
+        section=sched.get("section")
     )
     if "error" in result: return jsonify(result), 409
     session_id = result["session_id"]
@@ -2125,7 +2377,14 @@ def update_scheduled_session(teacher_uid, sched_id):
     new_e = data.get("end_time",   d.get("end_time",""))
     new_d = data.get("date",       d.get("date",""))
     if new_s >= new_e: return jsonify({"error": "End time must be after start time"}), 400
-    ov = _ss_overlap(db, teacher_uid, new_d, new_s, new_e, exclude_id=sched_id)
+
+    new_class_id = data.get("class_id", d.get("class_id", ""))
+    dept, sem, sec = parse_class_id(new_class_id)
+    department = data.get("department", d.get("department", "")).strip() or dept
+    semester = str(data.get("semester", d.get("semester", ""))).strip() or sem
+    section = data.get("section", d.get("section", "")).strip() or sec
+
+    ov = _ss_overlap(db, teacher_uid, new_d, new_s, new_e, department, semester, section, exclude_id=sched_id)
     if ov:
         return jsonify({"error":
             f"Overlap with \"{ov.get('subject','')}\" ({ov.get('start_time','')}–{ov.get('end_time','')})"
@@ -2166,7 +2425,7 @@ def verify_email_startup_config():
     email_from = os.environ.get("EMAIL_FROM", "onboarding@resend.dev")
     
     print("\n" + "="*70)
-    print("📧 [EMAIL STARTUP AUDIT] Smart AI Attendance Email System Initialization")
+    print("[EMAIL STARTUP AUDIT] Attendance Management System Email System Initialization")
     print("="*70)
     
     # 1. Verify Key

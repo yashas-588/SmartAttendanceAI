@@ -71,3 +71,4 @@ venv/
 __pycache__/
 *.pyc
 firebase_key.json
+.DS_Store

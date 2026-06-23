@@ -4,10 +4,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reports — Smart AI Attendance</title>
+  <title>Reports — Attendance Management System</title>
   <link rel="stylesheet" href="../style.css">
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <style>
     body {
@@ -230,7 +230,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 
 <body>
@@ -275,14 +275,6 @@
           <div class="rd">Students with &lt;75% attendance for the selected period.</div>
           <button class="btn-danger" style="width:100%;padding:10px;" onclick="dlDefaulters()"><i
               data-lucide="download"></i> Download Defaulters</button>
-        </div>
-        <div class="rcard purple">
-          <div class="ri"><i data-lucide="bot"></i></div>
-          <div class="rt">AI Confidence Log</div>
-          <div class="rd">All AI face-matched records with FaceNet-128 similarity scores.</div>
-          <button class="btn-secondary"
-            style="width:100%;padding:10px;border-color:rgba(167,139,250,0.4);color:var(--neon-purple);"
-            onclick="dlAILog()"><i data-lucide="download"></i> Download AI Log</button>
         </div>
       </div>
 
@@ -362,7 +354,7 @@
       <td style="font-weight:600;color:var(--neon-blue);">${r.name}</td>
       <td>${r.date}</td><td>${r.time || '--'}</td>
       <td><span class="badge ${colors[r.status] || 'badge-blue'} " style="font-size:11px;">${r.status}</span></td>
-      <td style="font-size:12px;color:var(--text-muted);">${r.method || 'AI Face'}</td>
+      <td style="font-size:12px;color:var(--text-muted);">${(r.method && r.method.includes('AI')) ? 'Face Recognition + Session Verification' : (r.method || 'Face Recognition')}</td>
       <td style="font-size:12px;">${r.confidence !== undefined ? Math.round(r.confidence * 100) + '%' : '--'}</td>
     </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No records found</td></tr>';
       lucide.createIcons();
@@ -381,7 +373,7 @@
     async function dlAttendance() {
       await loadPreview();
       const csv = toCSV(
-        previewData.map(r => [r.name, r.date, r.time || '', r.status, r.method || 'AI Face', r.confidence !== undefined ? Math.round(r.confidence * 100) + '%' : '']),
+        previewData.map(r => [r.name, r.date, r.time || '', r.status, r.method && r.method.includes('AI') ? 'Face Recognition + Session Verification' : (r.method || 'Face Recognition'), r.confidence !== undefined ? Math.round(r.confidence * 100) + '%' : '']),
         ['Student Name', 'Date', 'Time', 'Status', 'Method', 'Confidence']
       );
       downloadCSV(csv, `attendance_${document.getElementById('f-from').value}_to_${document.getElementById('f-to').value}.csv`);
@@ -389,30 +381,45 @@
     }
 
     async function dlDefaulters() {
-      const studSnap = await db.collection('students').get();
-      const rows = [];
-      for (const doc of studSnap.docs) {
-        const s = doc.data();
-        // Use auth UID when linked, else Firestore doc ID (matches attendance record format)
-        const sid = s.uid || doc.id;
-        const pSnap = await db.collection('attendance').where('studentId', '==', sid).where('status', '==', 'Present').get();
-        const tSnap = await db.collection('attendance').where('studentId', '==', sid).get();
-        const pct = tSnap.size ? Math.round((pSnap.size / tSnap.size) * 100) : 0;
-        if (pct < 75) rows.push([s.name, pSnap.size, tSnap.size, pct + '%']);
+      try {
+        const studSnap = await db.collection('students').get();
+        const attSnap = await db.collection('attendance').get();
+        const studentStats = {}; // { studentId: { present: 0, total: 0 } }
+        
+        attSnap.forEach(d => {
+          const r = d.data();
+          const sid = r.studentId;
+          if (sid) {
+            if (!studentStats[sid]) {
+              studentStats[sid] = { present: 0, total: 0 };
+            }
+            studentStats[sid].total++;
+            if (r.status === 'Present') {
+              studentStats[sid].present++;
+            }
+          }
+        });
+
+        const rows = [];
+        studSnap.forEach(doc => {
+          const s = doc.data();
+          const sid = s.uid || doc.id;
+          const stats = studentStats[sid] || { present: 0, total: 0 };
+          const pct = stats.total ? Math.round((stats.present / stats.total) * 100) : 0;
+          if (pct < 75) {
+            rows.push([s.name, stats.present, stats.total, pct + '%']);
+          }
+        });
+
+        downloadCSV(toCSV(rows, ['Student Name', 'Present Sessions', 'Total Sessions', 'Attendance %']), 'defaulters_report.csv');
+        showToast(`${rows.length} defaulters exported!`, 'success');
+      } catch (err) {
+        console.error('Defaulters export error:', err);
+        showToast('Failed to export defaulters: ' + err.message, 'error');
       }
-      downloadCSV(toCSV(rows, ['Student Name', 'Present Sessions', 'Total Sessions', 'Attendance %']), 'defaulters_report.csv');
-      showToast(`${rows.length} defaulters exported!`, 'success');
     }
 
-    async function dlAILog() {
-      await loadPreview();
-      const aiOnly = previewData.filter(r => r.method === 'AI Face' || r.method === 'AI Live Scan');
-      downloadCSV(toCSV(
-        aiOnly.map(r => [r.name, r.date, r.time || '', r.status, r.method, r.confidence !== undefined ? Math.round(r.confidence * 100) + '%' : '', r.location ? `${r.location.lat},${r.location.lon}` : '']),
-        ['Student', 'Date', 'Time', 'Status', 'Method', 'FaceNet Confidence', 'GPS Location']
-      ), 'ai_confidence_log.csv');
-      showToast('AI log downloaded!', 'success');
-    }
+    // AI log export functionality removed in compliance with cleanup guidelines.
 
     lucide.createIcons();
   </script>
