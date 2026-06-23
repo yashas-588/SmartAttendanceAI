@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Student Management — Smart AI Attendance</title>
+  <title>Student Management — Attendance Management System</title>
   <link rel="stylesheet" href="../style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { display:flex; min-height:100vh; }
     .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
@@ -97,14 +97,11 @@
     }
   </style>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/face-engine.js?v=2.1"></script>
-  <script src="../js/liveness.js?v=2.2"></script>
-  <script src="../js/auth-guard.js?v=2.1"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -150,14 +147,40 @@
       <button class="modal-close" onclick="closeAdd()">✕</button>
     </div>
     <div class="info-hint">
-      💡 After capturing 5 face photos, a Firebase login account is <strong>automatically created</strong> and a <strong>password setup email</strong> is sent to the student's email address. The student will set their own password.
+      After capturing 5 face photos, a Firebase login account is <strong>automatically created</strong> and a <strong>password setup email</strong> is sent to the student's email address. The student will set their own password.
     </div>
     <div class="form-group"><label>Full Name *</label><input type="text" id="add-name" placeholder="e.g. Ravi Kumar"></div>
-    <div class="form-group"><label>Department</label><input type="text" id="add-dept" placeholder="e.g. Computer Science"></div>
+    <div class="form-group">
+      <label>Department</label>
+      <select id="add-dept">
+        <option value="">Select department...</option>
+        <option>ISE</option><option>CSE</option><option>ECE</option>
+        <option>ME</option><option>CV</option><option>EEE</option>
+        <option>BT</option><option>MCA</option><option>MBA</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Semester</label>
+        <select id="add-sem">
+          <option value="">Sem...</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option>
+          <option>5</option><option>6</option><option>7</option><option>8</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Section</label>
+        <select id="add-sec">
+          <option value="">Sec...</option>
+          <option>A</option><option>B</option><option>C</option>
+          <option>D</option><option>E</option><option>F</option>
+        </select>
+      </div>
+    </div>
     <div class="form-group"><label>Student ID (USN)</label><input type="text" id="add-sid" placeholder="e.g. 1RV21CS001"></div>
     <div class="form-group"><label>Student Email (required for login)</label><input type="email" id="add-email" placeholder="student@university.edu"></div>
     <div class="form-group">
-      <label>Face Capture — 5 Photos for FaceNet-128 Training</label>
+      <label>Face Capture — 5 Photos for Biometric Enrollment</label>
       <div class="cam-box" style="height:220px;"><video id="reg-video" autoplay playsinline muted style="height:100%;object-fit:cover;transform:scaleX(-1);"></video></div>
       <div class="dots-row" id="add-dots-row">
         <div class="dot" id="add-dot-0"></div><div class="dot" id="add-dot-1"></div>
@@ -219,18 +242,40 @@
       <button class="modal-close" onclick="closeEditModal()">✕</button>
     </div>
     <div id="edit-email-warning" class="warn-hint" style="display:none;">
-      ⚠️ Changing the email here does <strong>not</strong> update the Firebase Auth login email. If the student cannot log in after an email change, use the Firebase Console to update their authentication email directly.
+      Changing the email here does <strong>not</strong> update the Firebase Auth login email. If the student cannot log in after an email change, use the Firebase Console to update their authentication email directly.
     </div>
     <div class="edit-grid">
       <div class="form-group full"><label>Full Name *</label><input type="text" id="edit-name" placeholder="Student full name"></div>
       <div class="form-group"><label>USN / Student ID</label><input type="text" id="edit-usn" placeholder="e.g. 1RV21CS001"></div>
-      <div class="form-group"><label>Department</label><input type="text" id="edit-dept" placeholder="e.g. Computer Science"></div>
+      <div class="form-group">
+        <label>Department</label>
+        <select id="edit-dept">
+          <option value="">Select dept...</option>
+          <option>ISE</option><option>CSE</option><option>ECE</option>
+          <option>ME</option><option>CV</option><option>EEE</option>
+          <option>BT</option><option>MCA</option><option>MBA</option>
+        </select>
+      </div>
       <div class="form-group full"><label>Student Email</label><input type="email" id="edit-email" placeholder="student@university.edu" oninput="checkEditEmailWarning()"></div>
       <div class="form-group full"><label>Parent Email</label><input type="email" id="edit-parent-email" placeholder="parent@gmail.com"></div>
       <div class="form-group"><label>Student Phone</label><input type="tel" id="edit-phone" placeholder="+91XXXXXXXXXX"></div>
       <div class="form-group"><label>Parent Phone</label><input type="tel" id="edit-parent-phone" placeholder="+91XXXXXXXXXX"></div>
-      <div class="form-group"><label>Semester</label><input type="text" id="edit-semester" placeholder="e.g. 6"></div>
-      <div class="form-group"><label>Section</label><input type="text" id="edit-section" placeholder="e.g. A"></div>
+      <div class="form-group">
+        <label>Semester</label>
+        <select id="edit-semester">
+          <option value="">Sem...</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option>
+          <option>5</option><option>6</option><option>7</option><option>8</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Section</label>
+        <select id="edit-section">
+          <option value="">Sec...</option>
+          <option>A</option><option>B</option><option>C</option>
+          <option>D</option><option>E</option><option>F</option>
+        </select>
+      </div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;">
       <button class="btn-secondary" style="flex:1;" onclick="closeEditModal()">Cancel</button>
@@ -331,8 +376,52 @@
 <script>
 requireAuth('teacher', '../');
 
-const faceEng = new FaceEngine();
-const livEng  = new LivenessEngine();
+let faceEng = null;
+let livEng  = null;
+let faceModelsLoadingPromise = null;
+
+function ensureFaceModelsLoaded() {
+  if (faceModelsLoadingPromise) return faceModelsLoadingPromise;
+  
+  faceModelsLoadingPromise = new Promise(async (resolve, reject) => {
+    try {
+      showToast('Initializing face recognition engines...', 'info', 2000);
+      
+      const loadScript = (src) => {
+        return new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = res;
+          s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      };
+      
+      // Load heavy scripts in parallel
+      await Promise.all([
+        loadScript('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js'),
+        loadScript('../js/face-engine.js?v=2.1'),
+        loadScript('../js/liveness.js?v=2.2')
+      ]);
+      
+      // Instantiate engines
+      faceEng = new FaceEngine();
+      livEng  = new LivenessEngine();
+      
+      // Load face recognition models
+      await faceEng.loadModels(msg => showToast(msg, 'info', 1000));
+      
+      console.log('Face recognition engines lazy-loaded successfully');
+      resolve();
+    } catch (e) {
+      faceModelsLoadingPromise = null; // Reset on failure so we can retry
+      showToast('Failed to initialize verification engines: ' + e.message, 'error');
+      reject(e);
+    }
+  });
+  
+  return faceModelsLoadingPromise;
+}
 
 let allStudents        = [];
 let capturedDescriptors = [];
@@ -358,7 +447,6 @@ const secondaryAuth = secondaryApp.auth();
 
 document.addEventListener('authReady', async () => {
   document.getElementById('sidebar-wrap').innerHTML = renderAdminSidebar('students.html');
-  await faceEng.loadModels(null, true);
   lucide.createIcons();
   loadStudents();
   setupDragAndDrop('csv-drop-zone', 'csv-file', handleCSVSelect);
@@ -650,6 +738,7 @@ function updateDots(prefix) {
 //  ADD NEW STUDENT MODAL
 // ══════════════════════════════════════════════════════════════════════════════
 async function openAdd() {
+  await ensureFaceModelsLoaded();
   capturedDescriptors = []; capCount = 0;
   updateDots('add-dot-');
   ['add-name','add-dept','add-sid','add-email'].forEach(id => {
@@ -665,7 +754,11 @@ async function openAdd() {
       video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 480, max: 720 } },
       audio: false
     });
-    document.getElementById('reg-video').srcObject = regStream;
+    const video = document.getElementById('reg-video');
+    video.srcObject = regStream;
+    video.onloadedmetadata = () => {
+      video.play().catch(e => console.warn('video.play failed for reg-video:', e));
+    };
   } catch(e) { showToast('Camera access denied', 'error'); }
   lucide.createIcons();
 }
@@ -689,7 +782,7 @@ async function captureFrameAdd() {
     return;
   }
 
-  document.getElementById('add-cap-status').textContent = 'Extracting FaceNet-128 descriptor...';
+  document.getElementById('add-cap-status').textContent = 'Extracting biometric descriptor...';
   // Use raw faceapi to get detection score + descriptor for quality enforcement
   const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
   if (!det) {
@@ -715,10 +808,12 @@ async function captureFrameAdd() {
 }
 
 async function submitNewStudent() {
-  const name    = document.getElementById('add-name').value.trim();
-  const dept    = document.getElementById('add-dept').value.trim() || 'Engineering';
-  const email   = document.getElementById('add-email').value.trim().toLowerCase();
-  const sid     = document.getElementById('add-sid').value.trim();
+  const name     = document.getElementById('add-name').value.trim();
+  const dept     = document.getElementById('add-dept').value.trim();
+  const semester = document.getElementById('add-sem').value.trim();
+  const section  = document.getElementById('add-sec').value.trim();
+  const email    = document.getElementById('add-email').value.trim().toLowerCase();
+  const sid      = document.getElementById('add-sid').value.trim();
 
   if (!name || capturedDescriptors.length < 5) {
     showToast('Enter name and capture 5 face images', 'error'); return;
@@ -761,6 +856,7 @@ async function submitNewStudent() {
     // Write student document first (uid will be updated by autoCreateLogin)
     const newRef = await db.collection('students').add({
       name, dept, department: dept, email, studentId: sid, usn: sid,
+      semester, section,
       uid: null,
       descriptors: descriptorMap,
       meanDescriptor: meanDesc,
@@ -793,6 +889,7 @@ async function submitNewStudent() {
 //  CAPTURE FACE MODAL  (for existing students from CSV)
 // ══════════════════════════════════════════════════════════════════════════════
 async function openCaptureModal(studentId, studentName, studentEmail, isRetrain) {
+  await ensureFaceModelsLoaded();
   editingStudentId    = studentId;
   editingStudentEmail = studentEmail;
   editingStudentName  = studentName;
@@ -823,7 +920,11 @@ async function openCaptureModal(studentId, studentName, studentEmail, isRetrain)
       video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 480, max: 720 } },
       audio: false
     });
-    document.getElementById('cap-modal-video').srcObject = regStream;
+    const video = document.getElementById('cap-modal-video');
+    video.srcObject = regStream;
+    video.onloadedmetadata = () => {
+      video.play().catch(e => console.warn('video.play failed for cap-modal-video:', e));
+    };
   } catch(e) { showToast('Camera access denied', 'error'); }
   lucide.createIcons();
 }
@@ -847,7 +948,7 @@ async function captureFrameModal() {
     return;
   }
 
-  document.getElementById('cap-modal-status').textContent = 'Extracting FaceNet-128 descriptor...';
+  document.getElementById('cap-modal-status').textContent = 'Extracting biometric descriptor...';
   // Use raw faceapi to get detection score + descriptor for quality enforcement
   const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
   if (!det) {
@@ -958,10 +1059,10 @@ async function autoCreateLogin(email, name, studentDocId) {
     // does NOT require sign-in — it's a standalone call.
     try {
       await auth.sendPasswordResetEmail(email);
-      showToast(`✅ ${name}: Account created and password setup email sent to ${email}`, 'success', 8000);
+      showToast(`${name}: Account created and password setup email sent to ${email}`, 'success', 8000);
     } catch(emailErr) {
       console.error('sendPasswordResetEmail failed:', emailErr);
-      showToast(`⚠️ ${name}: Account created, but setup email failed to send (${emailErr.code}). Use "Resend Setup Link" to retry.`, 'error', 10000);
+      showToast(`${name}: Account created, but setup email failed to send (${emailErr.code}). Use "Resend Setup Link" to retry.`, 'error', 10000);
     }
   } catch(e) {
     showToast(`Face captured, but automated account creation failed: ${e.message}`, 'error', 8000);
@@ -990,7 +1091,7 @@ async function resetStudentPassword(studentId, email, name) {
     showToast('Sending password reset email...', 'info', 3000);
     // Direct client-side call — no backend needed for resets
     await auth.sendPasswordResetEmail(email);
-    showToast(`✅ Password reset email sent to ${email}`, 'success', 6000);
+    showToast(`Password reset email sent to ${email}`, 'success', 6000);
   } catch(e) {
     showToast(`Failed: ${e.message}`, 'error');
   }

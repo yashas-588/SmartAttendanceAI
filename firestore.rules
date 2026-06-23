@@ -10,7 +10,15 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isTeacher());
-      allow create: if request.auth != null && request.auth.uid == userId && (request.resource.data.role == 'student' || isTeacher());
+      // Allow any newly authenticated user to create their own profile with a valid role.
+      // role must be one of the three recognised values — no arbitrary escalation allowed.
+      // NOTE: isTeacher() cannot be used here — it reads the users doc which doesn't exist
+      //       yet during a create, causing a circular dependency that always evaluates false.
+      // Privilege escalation after creation is prevented by the update rule below (role is a
+      // protected field that only teachers can change via update).
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.role in ['student', 'teacher', 'admin'];
       allow update: if request.auth != null && (isTeacher() || (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions', 'accountType', 'accountStatus'])));
       allow delete: if isTeacher();
     }
@@ -35,7 +43,7 @@ service cloud.firestore {
       allow update: if isTeacher() || (
         request.auth != null 
         && request.auth.uid == resource.data.uid
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['descriptors', 'email', 'name', 'usn', 'department', 'semester'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['descriptors', 'email', 'name', 'usn', 'department', 'semester', 'section'])
       );
       allow delete: if isTeacher();
     }

@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Settings — Smart AI Attendance</title>
+  <title>Settings — Attendance Management System</title>
   <link rel="stylesheet" href="../style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { display:flex; min-height:100vh; }
     .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
@@ -39,6 +39,9 @@
     #map-container iframe { width:100%; height:100%; border:none; }
     .map-overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(2,8,23,0.85); gap:12px; }
     .loc-display { background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:12px 16px; font-size:12px; font-family:monospace; }
+    .metrics-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; margin-top:16px; }
+    @media(max-width:992px) { .metrics-grid { grid-template-columns:repeat(3, 1fr); } }
+    @media(max-width:600px) { .metrics-grid { grid-template-columns:repeat(2, 1fr); } }
     @media(max-width:768px) { .sidebar { transform:translateX(-100%); } .main-content { margin-left:0; } .content,.topbar { padding-left:16px; padding-right:16px; } }
   </style>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -46,7 +49,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -63,25 +66,25 @@
     <div class="sect">
       <div class="sect-title"><i data-lucide="database" style="color:var(--neon-green);width:18px;height:18px;"></i> ERP Storage & Dataset Dashboard</div>
       <div class="sect-desc">Live system metrics and storage consumption.</div>
-      <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; margin-top:16px;">
+      <div class="metrics-grid">
         <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-blue);" id="db-total-students">0</div>
+          <div style="font-family:'Inter',sans-serif; font-size:18px; font-weight:700; color:var(--neon-blue);" id="db-total-students">0</div>
           <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">TOTAL STUDENTS</div>
         </div>
         <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-green);" id="db-registered-faces">0</div>
+          <div style="font-family:'Inter',sans-serif; font-size:18px; font-weight:700; color:var(--neon-green);" id="db-registered-faces">0</div>
           <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">TRAINED FACES</div>
         </div>
         <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-purple);" id="db-doc-storage">0.0 KB</div>
+          <div style="font-family:'Inter',sans-serif; font-size:18px; font-weight:700; color:var(--neon-purple);" id="db-doc-storage">0.0 KB</div>
           <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">DOC STORAGE</div>
         </div>
         <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-pink);" id="db-avg-profile-size">0.0 KB</div>
+          <div style="font-family:'Inter',sans-serif; font-size:18px; font-weight:700; color:var(--neon-pink);" id="db-avg-profile-size">0.0 KB</div>
           <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">AVG PROFILE SIZE</div>
         </div>
         <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:var(--neon-orange);" id="db-total-storage">0.0 KB</div>
+          <div style="font-family:'Inter',sans-serif; font-size:18px; font-weight:700; color:var(--neon-orange);" id="db-total-storage">0.0 KB</div>
           <div style="font-size:9px; color:var(--text-muted); margin-top:4px;">TOTAL DATASET</div>
         </div>
       </div>
@@ -105,18 +108,32 @@
           <label class="toggle"><input type="checkbox" id="loc-enabled" checked><span class="toggle-slider"></span></label>
         </div>
         <div class="row">
-          <div class="row-info"><h4>Allowed Radius (metres)</h4><p>Default: 10m. Min 5m, Max 10m for strict geofencing.</p></div>
-          <input type="number" id="loc-radius" value="10" min="5" max="10" style="width:90px;text-align:center;">
+          <div class="row-info"><h4>Allowed Radius</h4><p>Select preset distance or custom value. 0m = Geofence Disabled.</p></div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="loc-radius-preset" onchange="toggleCustomRadius()" style="width:180px; padding:8px; border-radius:8px; border:1px solid var(--border-glass); background:rgba(13,21,38,0.9); color:var(--text-secondary);">
+              <option value="0">0m = Geofence Disabled</option>
+              <option value="5">5m</option>
+              <option value="10">10m</option>
+              <option value="20">20m</option>
+              <option value="50">50m</option>
+              <option value="100">100m</option>
+              <option value="250">250m</option>
+              <option value="500">500m</option>
+              <option value="1000">1000m</option>
+              <option value="custom">Custom value...</option>
+            </select>
+            <input type="number" id="loc-radius-custom" placeholder="Metres" style="display:none; width:90px; text-align:center; padding:8px; border-radius:8px; border:1px solid var(--border-glass); background:rgba(13,21,38,0.9); color:var(--text-secondary);">
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- AI ENGINE -->
+    <!-- VERIFICATION ENGINE -->
     <div class="sect">
-      <div class="sect-title"><i data-lucide="cpu" style="color:var(--neon-purple);width:18px;height:18px;"></i> AI Recognition Settings</div>
-      <div class="sect-desc">Configure FaceNet-128 matching and anti-spoofing thresholds.</div>
+      <div class="sect-title"><i data-lucide="cpu" style="color:var(--neon-purple);width:18px;height:18px;"></i> Biometric Recognition Settings</div>
+      <div class="sect-desc">Configure biometric matching and liveness verification thresholds.</div>
       <div class="row">
-        <div class="row-info"><h4>Face Similarity Threshold</h4><p>Maximum Euclidean distance to consider a match. Lower = stricter. FaceNet paper recommends 0.45 (EER on LFW benchmark).</p></div>
+        <div class="row-info"><h4>Face Similarity Threshold</h4><p>Maximum Euclidean distance to consider a match. Lower = stricter. Standard biometric literature recommends a 0.45 similarity threshold.</p></div>
         <input type="number" id="face-thresh" value="0.45" min="0.3" max="0.7" step="0.01" style="width:90px;text-align:center;">
       </div>
       <div class="row">
@@ -206,7 +223,20 @@ async function loadSettings() {
     showSavedLocation(d.location);
   }
   if (d.locationCheckEnabled !== undefined) document.getElementById('loc-enabled').checked = d.locationCheckEnabled;
-  if (d.locationRadius) document.getElementById('loc-radius').value = d.locationRadius;
+  if (d.locationRadius !== undefined && d.locationRadius !== null) {
+    const radius = parseInt(d.locationRadius);
+    const presetSelect = document.getElementById('loc-radius-preset');
+    const customInput = document.getElementById('loc-radius-custom');
+    const presets = ['0', '5', '10', '20', '50', '100', '250', '500', '1000'];
+    if (presets.includes(radius.toString())) {
+      presetSelect.value = radius.toString();
+      customInput.style.display = 'none';
+    } else {
+      presetSelect.value = 'custom';
+      customInput.value = radius;
+      customInput.style.display = 'inline-block';
+    }
+  }
   if (d.faceThreshold) document.getElementById('face-thresh').value = d.faceThreshold;
   if (d.lbpThreshold) document.getElementById('lbp-thresh').value = d.lbpThreshold;
   if (d.blinkTimeout) document.getElementById('blink-timeout').value = d.blinkTimeout;
@@ -214,6 +244,18 @@ async function loadSettings() {
   if (d.oncePerDay !== undefined) document.getElementById('once-per-day').checked = d.oncePerDay;
   if (d.windowStart) document.getElementById('att-start').value = d.windowStart;
   if (d.windowEnd) document.getElementById('att-end').value = d.windowEnd;
+}
+
+function toggleCustomRadius() {
+  const presetSelect = document.getElementById('loc-radius-preset');
+  const customInput = document.getElementById('loc-radius-custom');
+  if (presetSelect.value === 'custom') {
+    customInput.style.display = 'inline-block';
+    customInput.value = '';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+  }
 }
 
 function formatBytes(bytes) {
@@ -250,10 +292,22 @@ function showSavedLocation(loc) {
 }
 
 async function saveAll() {
+  const presetValue = document.getElementById('loc-radius-preset').value;
+  let radius = 0;
+  if (presetValue === 'custom') {
+    radius = parseInt(document.getElementById('loc-radius-custom').value);
+    if (isNaN(radius) || radius < 0) {
+      showToast('Please enter a valid non-negative integer for custom radius.', 'error');
+      return;
+    }
+  } else {
+    radius = parseInt(presetValue);
+  }
+
   const settings = {
     location: savedLocation,
     locationCheckEnabled: document.getElementById('loc-enabled').checked,
-    locationRadius: Math.max(5, Math.min(10, parseInt(document.getElementById('loc-radius').value) || 10)),
+    locationRadius: radius,
     faceThreshold: parseFloat(document.getElementById('face-thresh').value) || 0.45,
     lbpThreshold: parseInt(document.getElementById('lbp-thresh').value) || 30,
     blinkTimeout: parseInt(document.getElementById('blink-timeout').value) || 6,

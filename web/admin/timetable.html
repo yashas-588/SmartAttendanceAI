@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Timetable — Smart AI Attendance</title>
+  <title>Timetable — Attendance Management System</title>
   <meta name="description" content="Manage weekly class schedule, import via OCR, and generate scheduled sessions.">
   <link rel="stylesheet" href="../style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body{display:flex;min-height:100vh;}
     .sidebar{width:var(--sidebar-width);background:rgba(2,8,23,0.97);border-right:1px solid var(--border-glass);display:flex;flex-direction:column;padding:24px 0;position:fixed;top:0;bottom:0;left:0;z-index:100;overflow-y:auto;}
@@ -30,7 +30,7 @@
     /* ── Stats bar ── */
     .stats-bar{display:flex;gap:14px;margin-bottom:24px;flex-wrap:wrap;}
     .stat-chip{background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:10px;}
-    .stat-num{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;color:var(--neon-blue);}
+    .stat-num{font-family:'Inter',sans-serif;font-size:20px;font-weight:700;color:var(--neon-blue);}
     .stat-lbl{font-size:11px;color:var(--text-muted);font-weight:600;}
 
     /* ── Day tabs ── */
@@ -46,7 +46,7 @@
     .schedule-empty{text-align:center;padding:40px 20px;color:var(--text-muted);}
     .entry-card{display:flex;align-items:center;gap:14px;padding:13px 16px;background:rgba(255,255,255,0.02);border:1px solid var(--border-glass);border-radius:14px;margin-bottom:8px;transition:var(--transition);}
     .entry-card:hover{border-color:rgba(56,189,248,0.25);background:rgba(56,189,248,0.03);}
-    .entry-time{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;color:var(--neon-blue);min-width:88px;text-align:center;background:rgba(56,189,248,0.08);border-radius:8px;padding:6px 8px;line-height:1.5;}
+    .entry-time{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:var(--neon-blue);min-width:88px;text-align:center;background:rgba(56,189,248,0.08);border-radius:8px;padding:6px 8px;line-height:1.5;}
     .entry-body{flex:1;}
     .entry-subject{font-size:14px;font-weight:700;margin-bottom:2px;}
     .entry-meta{font-size:11px;color:var(--text-muted);display:flex;gap:10px;flex-wrap:wrap;}
@@ -100,7 +100,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -113,7 +113,7 @@
       <span id="today-badge" class="badge badge-green" style="font-size:11px;"></span>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:12px;color:var(--neon-blue);"></span>
+      <span id="clock" style="font-family:'Inter',sans-serif;font-size:12px;color:var(--neon-blue);"></span>
       <button class="btn-primary" onclick="openAddModal()" style="padding:8px 16px;font-size:13px;">
         <i data-lucide="plus"></i> Add Class
       </button>
@@ -278,10 +278,32 @@
       <div class="form-group"><label>End Time *</label><input type="time" id="entry-end"></div>
     </div>
     <div class="form-group"><label>Subject *</label><input type="text" id="entry-subject" placeholder="e.g. Machine Learning"></div>
-    <div class="form-group"><label>Class / Section *</label><input type="text" id="entry-class" placeholder="e.g. CS-A Sem 5"></div>
+    <div class="form-group">
+      <label>Department *</label>
+      <select id="entry-dept">
+        <option value="">Select department...</option>
+        <option>ISE</option><option>CSE</option><option>ECE</option>
+        <option>ME</option><option>CV</option><option>EEE</option>
+        <option>BT</option><option>MCA</option><option>MBA</option>
+      </select>
+    </div>
     <div class="form-row">
-      <div class="form-group"><label>Department</label><input type="text" id="entry-dept" placeholder="e.g. CSE"></div>
-      <div class="form-group"><label>Semester</label><input type="text" id="entry-sem" placeholder="e.g. 5"></div>
+      <div class="form-group">
+        <label>Semester *</label>
+        <select id="entry-sem">
+          <option value="">Sem...</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option>
+          <option>5</option><option>6</option><option>7</option><option>8</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Section *</label>
+        <select id="entry-sec">
+          <option value="">Sec...</option>
+          <option>A</option><option>B</option><option>C</option>
+          <option>D</option><option>E</option><option>F</option>
+        </select>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-ghost" onclick="closeEntryModal()">Cancel</button>
@@ -404,14 +426,16 @@ function renderSchedule() {
 }
 
 function renderCard(e) {
+  const classMeta = e.department
+    ? `${e.department} · Sem ${e.semester || '?'} · Sec ${e.section || '?'}`
+    : (e.class_id || '');
   return `<div class="entry-card">
     <div class="entry-time">${e.start_time}<br><span style="font-size:9px;opacity:.6;">to</span><br>${e.end_time}</div>
     <div class="entry-body">
       <div class="entry-subject">${e.subject}</div>
       <div class="entry-meta">
-        <span><i data-lucide="users" style="width:11px;height:11px;"></i> ${e.class_id}</span>
+        <span><i data-lucide="users" style="width:11px;height:11px;"></i> ${classMeta}</span>
         ${e.room?`<span><i data-lucide="map-pin" style="width:11px;height:11px;"></i> ${e.room}</span>`:''}
-        ${e.department?`<span><i data-lucide="building" style="width:11px;height:11px;"></i> ${e.department}</span>`:''}
       </div>
     </div>
     <div class="entry-actions">
@@ -426,7 +450,7 @@ function openAddModal() {
   editingId = null;
   document.getElementById('modal-title-text').textContent = 'Add Class to Timetable';
   document.getElementById('entry-save-btn').innerHTML = '<i data-lucide="save"></i> Save Class';
-  ['entry-day','entry-room','entry-start','entry-end','entry-subject','entry-class','entry-dept','entry-sem']
+  ['entry-day','entry-room','entry-start','entry-end','entry-subject','entry-dept','entry-sem','entry-sec']
     .forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('entry-day').value = TODAY_NAME;
   document.getElementById('entryModal').classList.add('active');
@@ -442,9 +466,9 @@ function openEditModal(id) {
   document.getElementById('entry-start').value   = entry.start_time || '';
   document.getElementById('entry-end').value     = entry.end_time   || '';
   document.getElementById('entry-subject').value = entry.subject  || '';
-  document.getElementById('entry-class').value   = entry.class_id || '';
   document.getElementById('entry-dept').value    = entry.department || '';
   document.getElementById('entry-sem').value     = entry.semester   || '';
+  document.getElementById('entry-sec').value     = entry.section    || '';
   document.getElementById('entryModal').classList.add('active');
   lucide.createIcons();
 }
@@ -452,23 +476,32 @@ function closeEntryModal() { document.getElementById('entryModal').classList.rem
 document.getElementById('entryModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEntryModal();});
 
 async function saveEntry() {
-  const day=document.getElementById('entry-day').value,
-        start=document.getElementById('entry-start').value,
-        end=document.getElementById('entry-end').value,
-        subject=document.getElementById('entry-subject').value.trim(),
-        classId=document.getElementById('entry-class').value.trim();
-  if (!day)   {showToast('Select a day','error');return;}
-  if (!start) {showToast('Enter start time','error');return;}
-  if (!end)   {showToast('Enter end time','error');return;}
-  if (!subject){showToast('Enter a subject name','error');return;}
-  if (!classId){showToast('Enter class / section','error');return;}
-  if (start>=end){showToast('End time must be after start time','error');return;}
+  const day     = document.getElementById('entry-day').value;
+  const start   = document.getElementById('entry-start').value;
+  const end     = document.getElementById('entry-end').value;
+  const subject = document.getElementById('entry-subject').value.trim();
+  const dept    = document.getElementById('entry-dept').value.trim();
+  const sem     = document.getElementById('entry-sem').value.trim();
+  const sec     = document.getElementById('entry-sec').value.trim();
+  if (!day)    { showToast('Select a day','error');     return; }
+  if (!start)  { showToast('Enter start time','error'); return; }
+  if (!end)    { showToast('Enter end time','error');   return; }
+  if (!subject){ showToast('Enter a subject name','error'); return; }
+  if (!dept)   { showToast('Select a department','error');  return; }
+  if (!sem)    { showToast('Select a semester','error');    return; }
+  if (!sec)    { showToast('Select a section','error');     return; }
+  if (start>=end){ showToast('End time must be after start time','error'); return; }
+
+  const classId = `${dept} Sem${sem} Sec${sec}`;
+
   const btn=document.getElementById('entry-save-btn');
   btn.disabled=true; btn.innerHTML='<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></div> Saving...';
-  const payload={day,start_time:start,end_time:end,subject,class_id:classId,
-    room:document.getElementById('entry-room').value.trim(),
-    department:document.getElementById('entry-dept').value.trim(),
-    semester:document.getElementById('entry-sem').value.trim()};
+  const payload={
+    day, start_time:start, end_time:end, subject,
+    class_id: classId,
+    room: document.getElementById('entry-room').value.trim(),
+    department: dept, semester: sem, section: sec
+  };
   try {
     const idToken=await auth.currentUser.getIdToken();
     const url=editingId?getApiUrl(`/api/timetable/${editingId}`):getApiUrl('/api/timetable');
@@ -518,7 +551,7 @@ async function generateSessions() {
     result.innerHTML=`<span style="color:${color};font-weight:700;">✓ ${data.created} sessions created</span>
       ${data.skipped?` · <span style="color:var(--text-muted);">${data.skipped} skipped (already exist)</span>`:''}
       ${data.errors?.length?`<div style="margin-top:8px;font-size:11px;color:#f87171;">
-        ${data.errors.map(e=>`<div>⚠ ${e}</div>`).join('')}</div>`:''}
+        ${data.errors.map(e=>`<div>Error: ${e}</div>`).join('')}</div>`:''}
       <div style="margin-top:8px;font-size:11px;color:var(--text-muted);">
         View and manage in <a href="session.html" style="color:var(--neon-blue);">Session page</a>.
       </div>`;

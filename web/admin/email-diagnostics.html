@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Email Diagnostics — Smart AI Attendance</title>
+  <title>Email Diagnostics — Attendance Management System</title>
   <link rel="stylesheet" href="../style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { display: flex; min-height: 100vh; }
     .sidebar { width: var(--sidebar-width); background: rgba(2,8,23,0.97); border-right: 1px solid var(--border-glass); display: flex; flex-direction: column; padding: 24px 0; position: fixed; top: 0; bottom: 0; left: 0; z-index: 100; overflow-y: auto; }
@@ -63,7 +63,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -72,11 +72,10 @@
 <div class="main-content">
   <header class="topbar">
     <div style="display:flex;align-items:center;gap:12px;">
-      <button id="mob-menu" style="display:none;background:none;border:none;cursor:pointer;color:var(--text-primary);" onclick="document.querySelector('.sidebar').classList.toggle('open')"><i data-lucide="menu"></i></button>
       <h1 style="font-size:18px;font-weight:700;">Email Diagnostics</h1>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
-      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
+      <span id="clock" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
       <button class="btn-primary" style="padding:8px 18px;font-size:13px;" onclick="runDiagnostics()"><i data-lucide="refresh-cw"></i> Run Check</button>
     </div>
   </header>
@@ -349,13 +348,13 @@
         consoleEl.textContent += `[MESSAGE ID] ${data.response.id}\n`;
         
         if (data.sandbox_warning) {
-          consoleEl.textContent += `\n⚠️ SANDBOX NOTICE: Standard Resend sandbox restrictions apply. If the recipient does not receive the email, verify that "${email}" is the exact address associated with your Resend account.`;
+          consoleEl.textContent += `\nSANDBOX NOTICE: Standard Resend sandbox restrictions apply. If the recipient does not receive the email, verify that "${email}" is the exact address associated with your Resend account.`;
         }
         
         showToast('Test email sent successfully!', 'success');
       } else {
         consoleEl.className = 'console-box console-err';
-        consoleEl.textContent += `[DELIVERY FAILURE] ❌ Resend API rejected the request.\n`;
+        consoleEl.textContent += `[DELIVERY FAILURE] Resend API rejected the request.\n`;
         
         // Custom UI help based on exact provider response
         const errName = data.response?.name || '';
@@ -410,7 +409,7 @@
           <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
             <td style="padding:12px;font-weight:600;">${r.recipient || '--'}</td>
             <td style="padding:12px;"><span class="badge ${typeBadge}">${r.type || 'System'}</span></td>
-            <td style="padding:12px;"><span class="badge ${badge}">${r.status === 'sent' ? 'Sent ✓' : 'Failed ❌'}</span></td>
+            <td style="padding:12px;"><span class="badge ${badge}">${r.status === 'sent' ? 'Sent ✓' : 'Failed'}</span></td>
             <td style="padding:12px;font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.ref || ''}">${r.ref || '--'}</td>
             <td style="padding:12px;color:var(--text-muted);">${r.latency ? r.latency + 'ms' : '--'}</td>
             <td style="padding:12px;font-size:12px;color:var(--text-secondary);">${sentAt}</td>

@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Session Control — Smart AI Attendance</title>
+  <title>Session Control — Attendance Management System</title>
   <link rel="stylesheet" href="../style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { display:flex; min-height:100vh; }
     .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
@@ -37,7 +37,7 @@
     .ring-fill { stroke:var(--neon-green); stroke-linecap:round; transition:stroke-dashoffset 1s linear; }
     .ring-fill.warn { stroke:#fbbf24; }
     .timer-text { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-    .timer-num { font-family:'Orbitron',sans-serif; font-size:26px; font-weight:700; color:var(--neon-green); line-height:1; }
+    .timer-num { font-family:'Inter',sans-serif; font-size:26px; font-weight:700; color:var(--neon-green); line-height:1; }
     .timer-num.warn { color:#fbbf24; }
     .timer-lbl { font-size:10px; color:var(--text-muted); margin-top:4px; letter-spacing:1px; }
 
@@ -52,7 +52,7 @@
     .att-item { display:flex; align-items:center; gap:12px; padding:10px 12px; background:rgba(74,222,128,0.06); border:1px solid rgba(74,222,128,0.15); border-radius:10px; animation:fadeInUp 0.3s ease; }
     .att-avatar { width:32px; height:32px; border-radius:8px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
     .att-name { font-size:13px; font-weight:600; flex:1; }
-    .att-time { font-size:11px; color:var(--text-muted); font-family:'Orbitron',sans-serif; }
+    .att-time { font-size:11px; color:var(--text-muted); font-family:'Inter',sans-serif; }
     .att-conf { font-size:11px; color:var(--neon-green); }
     .empty-state { text-align:center; padding:40px 20px; color:var(--text-muted); }
 
@@ -69,9 +69,9 @@
     .hist-meta { flex:1; }
     .hist-title { font-size:13px; font-weight:600; }
     .hist-sub { font-size:11px; color:var(--text-muted); margin-top:2px; }
-    .hist-count { font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700; color:var(--neon-blue); }
+    .hist-count { font-family:'Inter',sans-serif; font-size:13px; font-weight:700; color:var(--neon-blue); }
 
-    @media(max-width:768px) { .sidebar{transform:translateX(-100%);} .main-content{margin-left:0;} .session-grid{grid-template-columns:1fr;} .topbar,.content{padding-left:16px;padding-right:16px;} }
+    @media(max-width:768px) { .sidebar{transform:translateX(-100%);} .main-content{margin-left:0;} .session-grid{grid-template-columns:1fr;} .modal-form-row{grid-template-columns:1fr;} .topbar,.content{padding-left:16px;padding-right:16px;} }
 
     /* ── Scheduled sessions panel ── */
     .upcoming-panel { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:20px; padding:24px; margin-bottom:20px; }
@@ -87,7 +87,7 @@
     .ss-item { display:flex; align-items:center; gap:12px; padding:12px 14px; background:rgba(255,255,255,0.02); border:1px solid var(--border-glass); border-radius:12px; margin-bottom:8px; transition:all .2s; }
     .ss-item.ss-active  { border-color:rgba(74,222,128,0.3);  background:rgba(74,222,128,0.03); }
     .ss-item.ss-expired { border-color:rgba(251,146,60,0.2);  background:rgba(251,146,60,0.02); }
-    .ss-time { font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; color:var(--neon-blue); min-width:86px; text-align:center; background:rgba(56,189,248,0.08); border-radius:7px; padding:5px 8px; line-height:1.6; }
+    .ss-time { font-family:'Inter',sans-serif; font-size:11px; font-weight:700; color:var(--neon-blue); min-width:86px; text-align:center; background:rgba(56,189,248,0.08); border-radius:7px; padding:5px 8px; line-height:1.6; }
     .ss-body { flex:1; min-width:0; }
     .ss-subj { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .ss-meta { font-size:11px; color:var(--text-muted); margin-top:2px; }
@@ -107,13 +107,48 @@
     .modal-group input:focus, .modal-group select:focus { outline:none; border-color:var(--neon-blue); background:rgba(56,189,248,0.05); }
     .modal-group select option { background:#0f172a; }
     .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+
+    /* Active cards & selection styling */
+    .active-card {
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.01);
+      transition: var(--transition);
+      position: relative;
+    }
+    .active-card:hover {
+      border-color: rgba(255, 255, 255, 0.15) !important;
+      background: rgba(255, 255, 255, 0.02) !important;
+    }
+    .active-card.selected {
+      border-color: var(--neon-blue) !important;
+      background: rgba(56, 189, 248, 0.04) !important;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
+    }
+    .btn-danger-icon {
+      padding: 6px;
+      border-radius: 6px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+    }
+    .btn-danger-icon:hover {
+      background: rgba(239, 68, 68, 0.2) !important;
+    }
   </style>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -127,23 +162,45 @@
         <span class="status-dot online"></span> Session Active
       </span>
     </div>
-    <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
+    <span id="clock" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
   </header>
 
   <div class="content">
     <div class="session-grid">
 
       <!-- LEFT: Session Control Panel -->
-      <div class="sess-panel" id="ctrl-panel">
-
-        <!-- No session state -->
-        <div id="no-session-ui">
+      <div class="sess-panel" id="ctrl-panel" style="display:flex;flex-direction:column;gap:24px;background:transparent;border:none;padding:0;">
+        <!-- Start Session Card -->
+        <div style="background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:20px;padding:24px;">
           <div class="panel-title"><i data-lucide="play-circle" style="color:var(--neon-blue);width:18px;height:18px;"></i> Start New Session</div>
           <div class="form-group">
-            <label>Class / Section</label>
-            <input type="text" id="inp-class" placeholder="e.g. CS-A Sem5" value="">
+            <label>Department</label>
+            <select id="inp-dept">
+              <option value="">Select department...</option>
+              <option>ISE</option><option>CSE</option><option>ECE</option>
+              <option>ME</option><option>CV</option><option>EEE</option>
+              <option>BT</option><option>MCA</option><option>MBA</option>
+            </select>
           </div>
-          <div class="form-group">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Semester</label>
+              <select id="inp-sem">
+                <option value="">Sem...</option>
+                <option>1</option><option>2</option><option>3</option><option>4</option>
+                <option>5</option><option>6</option><option>7</option><option>8</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Section</label>
+              <select id="inp-sec">
+                <option value="">Sec...</option>
+                <option>A</option><option>B</option><option>C</option>
+                <option>D</option><option>E</option><option>F</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:14px;">
             <label>Subject</label>
             <input type="text" id="inp-subject" placeholder="e.g. Machine Learning">
           </div>
@@ -171,40 +228,14 @@
           </button>
         </div>
 
-        <!-- Active session state -->
-        <div id="active-session-ui" style="display:none;">
-          <div class="panel-title active-panel-title">
-            <i data-lucide="activity" style="color:var(--neon-green);width:18px;height:18px;"></i> Active Session
+        <!-- Active Sessions Card -->
+        <div style="background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:20px;padding:24px;">
+          <div class="panel-title" style="margin-bottom:16px;">
+            <i data-lucide="activity" style="color:var(--neon-green);width:18px;height:18px;"></i> Active Sessions
           </div>
-
-          <!-- Countdown ring -->
-          <div class="timer-wrap">
-            <div class="timer-ring">
-              <svg width="140" height="140" viewBox="0 0 140 140">
-                <circle class="ring-bg" cx="70" cy="70" r="58"></circle>
-                <circle class="ring-fill" id="ring-fill" cx="70" cy="70" r="58"
-                  stroke-dasharray="364.4" stroke-dashoffset="0"></circle>
-              </svg>
-              <div class="timer-text">
-                <div class="timer-num" id="timer-num">--:--</div>
-                <div class="timer-lbl">REMAINING</div>
-              </div>
-            </div>
+          <div id="active-sessions-list" style="display:flex;flex-direction:column;gap:14px;">
+            <!-- Active sessions rendered here dynamically -->
           </div>
-
-          <div id="session-info-rows">
-            <div class="sess-info-row"><span class="sess-info-key">Class</span><span class="sess-info-val" id="si-class">—</span></div>
-            <div class="sess-info-row"><span class="sess-info-key">Subject</span><span class="sess-info-val" id="si-subject">—</span></div>
-            <div class="sess-info-row"><span class="sess-info-key">Duration</span><span class="sess-info-val" id="si-dur">—</span></div>
-            <div class="sess-info-row"><span class="sess-info-key">GPS</span><span class="sess-info-val" id="si-gps">—</span></div>
-            <div class="sess-info-row"><span class="sess-info-key">Present</span>
-              <span class="sess-info-val" id="si-count" style="color:var(--neon-green);font-family:'Orbitron',sans-serif;">0</span>
-            </div>
-          </div>
-
-          <button class="btn-danger" id="end-btn" onclick="endSession()" style="width:100%;padding:12px;margin-top:20px;border-radius:14px;font-size:14px;">
-            <i data-lucide="square"></i> End Session
-          </button>
         </div>
       </div>
 
@@ -271,11 +302,14 @@ document.addEventListener('authReady', async e => {
     if (el) el.textContent = new Date().toLocaleTimeString();
   }, 1000);
 
-  // Pre-fill from timetable URL params (e.g. ?subject=ML&class=CS-A)
+  // Pre-fill from timetable URL params: ?subject=ML&dept=ISE&sem=4&sec=A
   const params = new URLSearchParams(window.location.search);
   if (params.get('subject')) document.getElementById('inp-subject').value = params.get('subject');
-  if (params.get('class'))   document.getElementById('inp-class').value   = params.get('class');
-  if (params.get('subject') || params.get('class')) {
+  if (params.get('dept'))    document.getElementById('inp-dept').value    = params.get('dept');
+  if (params.get('sem'))     document.getElementById('inp-sem').value     = params.get('sem');
+  if (params.get('sec'))     document.getElementById('inp-sec').value     = params.get('sec');
+  // Legacy fallback: ?class=CS-A  — leave dropdowns empty, user must fill manually
+  if (params.get('subject') || params.get('dept') || params.get('class')) {
     showToast('Session pre-filled from timetable. Adjust duration and click Start.', 'info', 6000);
   }
 
@@ -283,7 +317,7 @@ document.addEventListener('authReady', async e => {
   document.getElementById('today-date-lbl').textContent =
     now.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-  await checkExistingSession();
+  setupActiveSessionsListener();
   await loadScheduledSessions();
   loadHistory();
 });
@@ -353,7 +387,7 @@ function renderScheduledSessions() {
         <button class="btn-ghost btn-sm" onclick="cancelScheduledSession('${s.id}','${s.subject}')" title="Cancel"><i data-lucide="x"></i></button>`;
     } else if (st==='active') {
       statusBadge = '<span class="ss-status" style="background:rgba(74,222,128,0.12);color:var(--neon-green);"><span style="display:inline-block;width:6px;height:6px;background:var(--neon-green);border-radius:50%;margin-right:4px;vertical-align:middle;"></span>Active</span>';
-      actions = `<button class="btn-danger btn-sm" onclick="endSession()" style="font-size:11px;padding:6px 12px;">
+      actions = `<button class="btn-danger btn-sm" onclick="endSession('${s.session_id}')" style="font-size:11px;padding:6px 12px;">
         <i data-lucide="square"></i> End Session</button>`;
     } else if (st==='completed') {
       statusBadge = '<span class="ss-status" style="background:rgba(167,139,250,0.1);color:var(--neon-purple);">Completed</span>';
@@ -384,17 +418,31 @@ async function startScheduledSession(schedId, subject) {
   const btn = document.querySelector(`[onclick="startScheduledSession('${schedId}','${subject}')"]`);
   if (btn) { btn.disabled=true; btn.innerHTML='<div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;"></div>'; }
   try {
+    let locationRadius = 10;
+    try {
+      const settingsDoc = await db.collection('settings').doc('classroom').get();
+      if (settingsDoc.exists) {
+        const cfg = settingsDoc.data();
+        if (cfg.locationRadius !== undefined && cfg.locationRadius !== null) {
+          locationRadius = parseInt(cfg.locationRadius);
+        }
+      }
+    } catch(e) {
+      console.warn('Failed to load location radius from settings:', e);
+    }
+
     const idToken = await auth.currentUser.getIdToken();
     const res = await fetch(getApiUrl(`/api/scheduled-sessions/${schedId}/start`), {
       method: 'POST',
       headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${idToken}` },
-      body: JSON.stringify({})
+      body: JSON.stringify({
+        location_radius: locationRadius
+      })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Start failed');
     showToast(`${subject} session started`, 'success');
     activeSessionId = data.session_id;
-    await checkExistingSession();
     await loadScheduledSessions();
     loadHistory();
   } catch(e) {
@@ -427,7 +475,9 @@ function openEditSchedModal(schedId) {
   document.getElementById('ex-start').value   = s.start_time || '';
   document.getElementById('ex-end').value     = s.end_time || '';
   document.getElementById('ex-subject').value = s.subject || '';
-  document.getElementById('ex-class').value   = s.class_id || '';
+  document.getElementById('ex-dept').value    = s.department || '';
+  document.getElementById('ex-sem').value     = s.semester || '';
+  document.getElementById('ex-sec').value     = s.section || '';
   document.getElementById('ex-room').value    = s.room || '';
   document.getElementById('ex-modal-title').textContent = 'Edit Scheduled Class';
   document.getElementById('ex-save-btn').textContent = 'Update';
@@ -443,7 +493,9 @@ function openExtraClassModal() {
   document.getElementById('ex-start').value   = '';
   document.getElementById('ex-end').value     = '';
   document.getElementById('ex-subject').value = '';
-  document.getElementById('ex-class').value   = '';
+  document.getElementById('ex-dept').value    = '';
+  document.getElementById('ex-sem').value     = '';
+  document.getElementById('ex-sec').value     = '';
   document.getElementById('ex-room').value    = '';
   document.getElementById('ex-modal-title').textContent = 'Add Extra Class';
   document.getElementById('ex-save-btn').textContent = 'Schedule';
@@ -456,70 +508,65 @@ function closeExtraClassModal() {
 }
 
 async function saveExtraClass() {
-  const inpDate = document.getElementById('ex-date');
-  const inpStart = document.getElementById('ex-start');
-  const inpEnd = document.getElementById('ex-end');
+  const inpDate    = document.getElementById('ex-date');
+  const inpStart   = document.getElementById('ex-start');
+  const inpEnd     = document.getElementById('ex-end');
   const inpSubject = document.getElementById('ex-subject');
-  const inpClass = document.getElementById('ex-class');
-  const inpRoom = document.getElementById('ex-room');
+  const inpDept    = document.getElementById('ex-dept');
+  const inpSem     = document.getElementById('ex-sem');
+  const inpSec     = document.getElementById('ex-sec');
+  const inpRoom    = document.getElementById('ex-room');
 
-  const date    = inpDate.value;
-  const start   = inpStart.value;
-  const end     = inpEnd.value;
-  const subject = inpSubject.value.trim();
-  const classId = inpClass.value.trim();
-  const room    = inpRoom.value.trim();
+  let date         = inpDate.value.trim();
+  const start      = inpStart.value;
+  const end        = inpEnd.value;
+  const subject    = inpSubject.value.trim();
+  const department = inpDept.value.trim();
+  const semester   = inpSem.value.trim();
+  const section    = inpSec.value.trim();
+  const room       = inpRoom.value.trim();
+
+  // Normalize date from DD/MM/YYYY or YYYY/MM/DD to YYYY-MM-DD
+  if (date.includes('/')) {
+    const parts = date.split('/');
+    if (parts[2] && parts[2].length === 4) {
+      // DD/MM/YYYY -> YYYY-MM-DD
+      date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    } else if (parts[0] && parts[0].length === 4) {
+      // YYYY/MM/DD -> YYYY-MM-DD
+      date = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    }
+  }
 
   // Clear previous validation styling
-  inpDate.style.border = '';
-  inpStart.style.border = '';
-  inpEnd.style.border = '';
-  inpSubject.style.border = '';
-  inpClass.style.border = '';
-  inpRoom.style.border = '';
+  [inpDate,inpStart,inpEnd,inpSubject,inpDept,inpSem,inpSec,inpRoom].forEach(el => el.style.border = '');
 
-  if (!date)    { inpDate.style.border = '1px solid #ef4444'; showToast('Select a date','error'); return; }
-  if (!start)   { inpStart.style.border = '1px solid #ef4444'; showToast('Enter start time','error'); return; }
-  if (!end)     { inpEnd.style.border = '1px solid #ef4444'; showToast('Enter end time','error'); return; }
-  
+  if (!date)       { inpDate.style.border    = '1px solid #ef4444'; showToast('Select a date','error');       return; }
+  if (!start)      { inpStart.style.border   = '1px solid #ef4444'; showToast('Enter start time','error');    return; }
+  if (!end)        { inpEnd.style.border     = '1px solid #ef4444'; showToast('Enter end time','error');      return; }
+  if (!department) { inpDept.style.border    = '1px solid #ef4444'; showToast('Select a department','error'); return; }
+  if (!semester)   { inpSem.style.border     = '1px solid #ef4444'; showToast('Select a semester','error');   return; }
+  if (!section)    { inpSec.style.border     = '1px solid #ef4444'; showToast('Select a section','error');    return; }
+
   if (!subject) {
     inpSubject.style.border = '1px solid #ef4444';
-    showToast('Enter a subject','error');
-    return;
+    showToast('Enter a subject','error'); return;
   }
   if (subject.length < 2 || subject.length > 100) {
     inpSubject.style.border = '1px solid #ef4444';
-    showToast('Subject name must be between 2 and 100 characters','error');
-    return;
+    showToast('Subject name must be between 2 and 100 characters','error'); return;
   }
   if (/<[^>]*>/.test(subject)) {
     inpSubject.style.border = '1px solid #ef4444';
-    showToast('HTML tags are not allowed in subject name','error');
-    return;
+    showToast('HTML tags are not allowed in subject name','error'); return;
   }
-
-  if (!classId) {
-    inpClass.style.border = '1px solid #ef4444';
-    showToast('Enter class / section','error');
-    return;
-  }
-  if (classId.length < 2 || classId.length > 50) {
-    inpClass.style.border = '1px solid #ef4444';
-    showToast('Class name must be between 2 and 50 characters','error');
-    return;
-  }
-  if (/<[^>]*>/.test(classId)) {
-    inpClass.style.border = '1px solid #ef4444';
-    showToast('HTML tags are not allowed in class name','error');
-    return;
-  }
-
   if (start>=end) {
     inpStart.style.border = '1px solid #ef4444';
-    inpEnd.style.border = '1px solid #ef4444';
-    showToast('End time must be after start time','error');
-    return;
+    inpEnd.style.border   = '1px solid #ef4444';
+    showToast('End time must be after start time','error'); return;
   }
+
+  const classId = `${department} Sem${semester} Sec${section}`;
 
   const btn = document.getElementById('ex-save-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
@@ -530,9 +577,15 @@ async function saveExtraClass() {
     const method  = isEdit ? 'PUT' : 'POST';
     const res = await fetch(url, {
       method, headers:{'Content-Type':'application/json','Authorization':`Bearer ${idToken}`},
-      body: JSON.stringify({date,start_time:start,end_time:end,subject,class_id:classId,room})
+      body: JSON.stringify({date,start_time:start,end_time:end,subject,class_id:classId,room,department,semester,section})
     });
-    const data = await res.json();
+    const resText = await res.text();
+    let data;
+    try {
+      data = JSON.parse(resText);
+    } catch (err) {
+      throw new Error(`Server returned invalid response: ${resText.slice(0, 100)}`);
+    }
     if (!res.ok) throw new Error(data.error || (isEdit?'Update failed':'Schedule failed'));
     showToast(isEdit?'Class updated':`${subject} added for today`, 'success');
     closeExtraClassModal();
@@ -541,115 +594,244 @@ async function saveExtraClass() {
   btn.disabled=false; btn.textContent=_editSchedId?'Update':'Schedule';
 }
 
-// ── Check if teacher already has an active session ────────────────────────
-async function checkExistingSession() {
-  try {
-    const snap = await db.collection('sessions')
-      .where('teacher_id', '==', teacherUid)
-      .where('is_active', '==', true)
-      .limit(1)
-      .get();
-    if (!snap.empty) {
-      const doc = snap.docs[0];
-      const data = doc.data();
+// ── Concurrent Active Sessions Management ──────────────────────────────────
+let activeSessions = [];
+let activeSessionsUnsubscribe = null;
+let globalTickInterval = null;
+
+function setupActiveSessionsListener() {
+  if (activeSessionsUnsubscribe) activeSessionsUnsubscribe();
+  activeSessionsUnsubscribe = db.collection('sessions')
+    .where('teacher_id', '==', teacherUid)
+    .where('is_active', '==', true)
+    .onSnapshot(snap => {
+      activeSessions = [];
+      snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        
+        // Calculate remaining seconds
+        if (data.expires_at) {
+          const exp = data.expires_at.toDate();
+          data.remaining_seconds = Math.max(0, Math.floor((exp - new Date()) / 1000));
+        } else {
+          data.remaining_seconds = data.duration_minutes * 60;
+        }
+        
+        if (data.remaining_seconds > 0) {
+          activeSessions.push(data);
+        } else {
+          // Lazy deactivation of expired session
+          doc.ref.update({ is_active: false });
+        }
+      });
       
-      // Lazy expiry check
-      let expired = false;
-      if (data.expires_at) {
-        const expDate = data.expires_at.toDate();
-        if (new Date() > expDate) {
-          await doc.ref.update({ is_active: false });
-          expired = true;
+      // Keep selected active session ID valid
+      if (activeSessions.length > 0) {
+        if (!activeSessionId || !activeSessions.find(s => s.id === activeSessionId)) {
+          activeSessionId = activeSessions[0].id;
+        }
+      } else {
+        activeSessionId = null;
+      }
+      
+      renderActiveSessions();
+      updateLiveFeedSubscription();
+      startGlobalTick();
+      
+      // Update the active session badge in header
+      const badge = document.getElementById('session-badge');
+      if (badge) {
+        badge.style.display = activeSessions.length > 0 ? 'inline-flex' : 'none';
+      }
+    }, err => console.warn('Active sessions listener error:', err.message));
+}
+
+function renderActiveSessions() {
+  const listEl = document.getElementById('active-sessions-list');
+  if (!listEl) return;
+  
+  if (activeSessions.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">No active sessions. Start one using the form above.</div>';
+    return;
+  }
+  
+  listEl.innerHTML = activeSessions.map(s => {
+    const isSelected = s.id === activeSessionId;
+    const m = Math.floor(s.remaining_seconds / 60);
+    const sec = s.remaining_seconds % 60;
+    const timeStr = `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    const timerColor = s.remaining_seconds < 60 ? '#f87171' : 'var(--neon-green)';
+    
+    return `
+      <div class="active-card ${isSelected ? 'selected' : ''}" onclick="selectSession('${s.id}')" 
+           style="border: 1px solid ${isSelected ? 'var(--neon-blue)' : 'rgba(255,255,255,0.08)'};
+                  border-radius: 12px; padding: 14px; cursor: pointer;
+                  background: ${isSelected ? 'rgba(56,189,248,0.04)' : 'rgba(255,255,255,0.01)'};
+                  transition: var(--transition); position: relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <h4 style="font-size:14px; font-weight:600; color:var(--text-primary); margin:0;">${s.subject || 'Subject'}</h4>
+            <span class="badge" style="font-size:10px; padding:2px 6px; margin-top:4px; display:inline-block; background:rgba(255,255,255,0.06); color:var(--text-muted); border-radius:4px;">${s.class_id}</span>
+          </div>
+          ${isSelected ? '<span style="font-size:10px; color:var(--neon-blue); font-weight:700; display:flex; align-items:center; gap:4px;"><i data-lucide="check-circle" style="width:12px;height:12px;"></i>Viewing Feed</span>' : ''}
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+          <div style="font-size:12px; color:var(--text-muted);">
+            <span style="font-family:'Inter',sans-serif; font-weight:700; color:${timerColor};" id="timer-${s.id}">${timeStr}</span> remaining
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:11px; font-weight:600; color:var(--neon-green); background:rgba(74,222,128,0.1); padding:2px 8px; border-radius:6px;">
+              ${s.attendance_count || 0} Present
+            </span>
+            <button class="btn-danger-icon" onclick="event.stopPropagation(); endSession('${s.id}')" 
+                    style="padding:6px; border-radius:6px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+              <i data-lucide="square" style="width:12px; height:12px;"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  lucide.createIcons();
+}
+
+function startGlobalTick() {
+  if (globalTickInterval) clearInterval(globalTickInterval);
+  globalTickInterval = setInterval(() => {
+    let changed = false;
+    activeSessions.forEach(s => {
+      if (s.remaining_seconds > 0) {
+        s.remaining_seconds--;
+        // Update timer directly in DOM for performance
+        const timerEl = document.getElementById(`timer-${s.id}`);
+        if (timerEl) {
+          const m = Math.floor(s.remaining_seconds / 60);
+          const sec = s.remaining_seconds % 60;
+          timerEl.textContent = `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+          if (s.remaining_seconds < 60) {
+            timerEl.style.color = '#f87171';
+          }
+        }
+        if (s.remaining_seconds <= 0) {
+          changed = true;
         }
       }
-      
-      if (!expired) {
-        activeSessionId = doc.id;
-        const expDate = data.expires_at.toDate();
-        const remainingSec = Math.max(0, Math.floor((expDate - new Date()) / 1000));
-        showActiveUI({
-          ...data,
-          session_id: doc.id,
-          remaining_seconds: remainingSec
-        });
-        subscribeAttendance(doc.id);
-      }
+    });
+    
+    if (changed) {
+      activeSessions.forEach(s => {
+        if (s.remaining_seconds <= 0) {
+          db.collection('sessions').doc(s.id).update({ is_active: false }).catch(() => {});
+        }
+      });
     }
-  } catch(e) { console.warn('Session check failed:', e.message); }
+  }, 1000);
+}
+
+function selectSession(sessionId) {
+  if (activeSessionId === sessionId) return;
+  activeSessionId = sessionId;
+  renderActiveSessions();
+  updateLiveFeedSubscription();
+}
+
+function updateLiveFeedSubscription() {
+  if (activeSessionId) {
+    subscribeAttendance(activeSessionId);
+  } else {
+    if (sessionUnsubscribe) {
+      sessionUnsubscribe();
+      sessionUnsubscribe = null;
+    }
+    const el = document.getElementById('att-list');
+    if (el) {
+      el.innerHTML = `
+        <div class="empty-state">
+          <i data-lucide="clock" style="width:32px;height:32px;color:var(--text-muted);margin-bottom:8px;display:block;"></i>
+          Select an active session to view attendance
+        </div>`;
+      lucide.createIcons();
+    }
+  }
 }
 
 // ── Start Session ─────────────────────────────────────────────────────────
 async function startSession() {
-  const inpClass = document.getElementById('inp-class');
+  const selDept    = document.getElementById('inp-dept');
+  const selSem     = document.getElementById('inp-sem');
+  const selSec     = document.getElementById('inp-sec');
   const inpSubject = document.getElementById('inp-subject');
-  const classId  = inpClass.value.trim();
-  const subject  = inpSubject.value.trim();
-  const useGps   = document.getElementById('use-gps').checked;
+  const department = selDept.value.trim();
+  const semester   = selSem.value.trim();
+  const section    = selSec.value.trim();
+  const subject    = inpSubject.value.trim();
+  const useGps     = document.getElementById('use-gps').checked;
 
   // Clear previous validation styling
-  inpClass.style.border = '';
+  selDept.style.border = ''; selSem.style.border = ''; selSec.style.border = '';
   inpSubject.style.border = '';
 
-  // 1. Validation checks
-  if (!classId) {
-    inpClass.style.border = '1px solid #ef4444';
-    showToast('Enter a class/section name', 'error');
-    return;
-  }
-  if (classId.length < 2 || classId.length > 50) {
-    inpClass.style.border = '1px solid #ef4444';
-    showToast('Class name must be between 2 and 50 characters', 'error');
-    return;
-  }
-  if (/<[^>]*>/.test(classId)) {
-    inpClass.style.border = '1px solid #ef4444';
-    showToast('HTML tags are not allowed in class name', 'error');
-    return;
-  }
-
+  // Validation
+  if (!department) { selDept.style.border = '1px solid #ef4444'; showToast('Select a department', 'error'); return; }
+  if (!semester)   { selSem.style.border  = '1px solid #ef4444'; showToast('Select a semester', 'error');   return; }
+  if (!section)    { selSec.style.border  = '1px solid #ef4444'; showToast('Select a section', 'error');    return; }
   if (!subject) {
     inpSubject.style.border = '1px solid #ef4444';
-    showToast('Enter a subject name', 'error');
-    return;
+    showToast('Enter a subject name', 'error'); return;
   }
   if (subject.length < 2 || subject.length > 100) {
     inpSubject.style.border = '1px solid #ef4444';
-    showToast('Subject name must be between 2 and 100 characters', 'error');
-    return;
+    showToast('Subject name must be between 2 and 100 characters', 'error'); return;
   }
   if (/<[^>]*>/.test(subject)) {
     inpSubject.style.border = '1px solid #ef4444';
-    showToast('HTML tags are not allowed in subject name', 'error');
-    return;
+    showToast('HTML tags are not allowed in subject name', 'error'); return;
   }
 
+  const classId = `${department} Sem${semester} Sec${section}`;
   const btn = document.getElementById('start-btn');
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px;"></div> Starting...';
 
   try {
     let location = null;
+    let locationRadius = 10;
+    try {
+      const settingsDoc = await db.collection('settings').doc('classroom').get();
+      if (settingsDoc.exists) {
+        const cfg = settingsDoc.data();
+        if (cfg.locationRadius !== undefined && cfg.locationRadius !== null) {
+          locationRadius = parseInt(cfg.locationRadius);
+        }
+        if (cfg.location) {
+          location = cfg.location;
+        }
+      }
+    } catch(e) {
+      console.warn('Failed to load classroom settings for default session location:', e);
+    }
+
     if (useGps) {
-      location = await captureGPS();
-      if (!location) {
-        showToast('GPS unavailable — session started without location', 'warning');
+      const deviceLoc = await captureGPS();
+      if (deviceLoc) {
+        location = deviceLoc;
+      } else {
+        showToast('GPS capture failed — falling back to pinned classroom location', 'warning');
       }
     }
 
     const idToken = await auth.currentUser.getIdToken();
     const res = await fetch(getApiUrl('/api/session/create'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
       body: JSON.stringify({
         teacher_id: teacherUid,
-        class_id: classId,
-        subject: subject,
+        department, semester, section,
+        subject,
         duration_minutes: selectedDurMin,
-        location: location,
-        location_radius: 10
+        location,
+        location_radius: locationRadius
       })
     });
     const data = await res.json();
@@ -658,19 +840,10 @@ async function startSession() {
       throw new Error(data.error || 'Failed to start session');
     }
 
+    // Reactively focus newly started session
     activeSessionId = data.session_id;
 
-    showToast(`Session started — ${selectedDurMin} min window open`, 'success');
-    showActiveUI({
-      class_id: classId,
-      subject: subject,
-      duration_minutes: selectedDurMin,
-      location: location,
-      session_id: data.session_id,
-      remaining_seconds: selectedDurMin * 60,
-      attendance_count: 0
-    });
-    subscribeAttendance(data.session_id);
+    showToast(`Session started for ${classId}`, 'success');
     loadHistory();
   } catch(e) {
     showToast('Could not start session: ' + e.message, 'error');
@@ -681,11 +854,10 @@ async function startSession() {
 }
 
 // ── End Session ───────────────────────────────────────────────────────────
-async function endSession() {
-  if (!activeSessionId) return;
-  if (!confirm('End the current attendance session?')) return;
-  const btn = document.getElementById('end-btn');
-  btn.disabled = true;
+async function endSession(sessionId) {
+  const sid = sessionId || activeSessionId;
+  if (!sid) return;
+  if (!confirm('End this attendance session?')) return;
   try {
     const idToken = await auth.currentUser.getIdToken();
     const res = await fetch(getApiUrl('/api/session/end'), {
@@ -695,7 +867,7 @@ async function endSession() {
         'Authorization': `Bearer ${idToken}`
       },
       body: JSON.stringify({
-        session_id: activeSessionId,
+        session_id: sid,
         teacher_id: teacherUid
       })
     });
@@ -704,88 +876,9 @@ async function endSession() {
       throw new Error(data.error || 'Failed to end session');
     }
     showToast('Session ended successfully', 'success');
-    clearTimerAndSub();
-    showIdleUI();
     loadHistory();
   } catch(e) {
     showToast('Could not end session: ' + e.message, 'error');
-  }
-  btn.disabled = false;
-}
-
-// ── Show/hide UI states ───────────────────────────────────────────────────
-function showActiveUI(data) {
-  document.getElementById('no-session-ui').style.display = 'none';
-  document.getElementById('active-session-ui').style.display = 'block';
-  document.getElementById('session-badge').style.display = 'inline-flex';
-  document.getElementById('ctrl-panel').className = 'sess-panel active-panel';
-  document.getElementById('si-class').textContent   = data.class_id   || '—';
-  document.getElementById('si-subject').textContent = data.subject     || '—';
-  document.getElementById('si-dur').textContent     = (data.duration_minutes || selectedDurMin) + ' min';
-  document.getElementById('si-gps').textContent     = data.location ? `${data.location.lat?.toFixed(4)}, ${data.location.lon?.toFixed(4)}` : 'None';
-  document.getElementById('si-count').textContent   = data.attendance_count || 0;
-  sessionTotalSec = (data.duration_minutes || selectedDurMin) * 60;
-  startCountdown(data.remaining_seconds ?? sessionTotalSec);
-  lucide.createIcons();
-}
-
-function showIdleUI() {
-  document.getElementById('no-session-ui').style.display = 'block';
-  document.getElementById('active-session-ui').style.display = 'none';
-  document.getElementById('session-badge').style.display = 'none';
-  document.getElementById('ctrl-panel').className = 'sess-panel inactive-panel';
-  document.getElementById('att-list').innerHTML = '<div class="empty-state"><i data-lucide="clock" style="width:32px;height:32px;color:var(--text-muted);margin-bottom:8px;display:block;"></i>Start a session to see attendance</div>';
-  lucide.createIcons();
-  activeSessionId = null;
-}
-
-// ── Countdown timer + ring ────────────────────────────────────────────────
-function startCountdown(remainingSec) {
-  if (timerInterval) clearInterval(timerInterval);
-  let rem = Math.max(0, remainingSec);
-  updateRing(rem);
-  timerInterval = setInterval(async () => {
-    rem--;
-    if (rem <= 0) {
-      clearInterval(timerInterval);
-      showToast('Session expired automatically', 'info');
-      showIdleUI();
-      loadHistory();
-      return;
-    }
-    updateRing(rem);
-    // Every 30s, check if the session is still active in Firestore
-    if (rem % 30 === 0 && activeSessionId) {
-      try {
-        const doc = await db.collection('sessions').doc(activeSessionId).get();
-        if (doc.exists) {
-          const s = doc.data();
-          if (!s.is_active) {
-            clearInterval(timerInterval);
-            showIdleUI();
-            loadHistory();
-            return;
-          }
-        }
-      } catch(e) {}
-    }
-  }, 1000);
-}
-
-function updateRing(rem) {
-  const circumference = 364.4;
-  const fraction = rem / sessionTotalSec;
-  const offset = circumference * (1 - fraction);
-  const fill = document.getElementById('ring-fill');
-  if (fill) {
-    fill.style.strokeDashoffset = offset;
-    fill.className = 'ring-fill' + (rem < 60 ? ' warn' : '');
-  }
-  const num = document.getElementById('timer-num');
-  if (num) {
-    const m = Math.floor(rem / 60), s = rem % 60;
-    num.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    num.className = 'timer-num' + (rem < 60 ? ' warn' : '');
   }
 }
 
@@ -813,7 +906,7 @@ function subscribeAttendance(sessionId) {
           <div class="att-avatar">${(r.name||'?')[0].toUpperCase()}</div>
           <div>
             <div class="att-name">${r.name || 'Unknown'}</div>
-            <div class="att-conf">${conf ? `FaceNet ${conf}` : 'AI Face'}</div>
+            <div class="att-conf">${conf ? `Match ${conf}` : 'Face Recognition'}</div>
           </div>
           <div class="att-time">${r.time || ''}</div>
         </div>`;
@@ -911,9 +1004,33 @@ lucide.createIcons();
       <label>Subject *</label>
       <input type="text" id="ex-subject" placeholder="e.g. Machine Learning">
     </div>
+    <!-- Structured class selects -->
     <div class="modal-group">
-      <label>Class / Section *</label>
-      <input type="text" id="ex-class" placeholder="e.g. CS-A Sem 5">
+      <label>Department *</label>
+      <select id="ex-dept">
+        <option value="">Select department...</option>
+        <option>ISE</option><option>CSE</option><option>ECE</option>
+        <option>ME</option><option>CV</option><option>EEE</option>
+        <option>BT</option><option>MCA</option><option>MBA</option>
+      </select>
+    </div>
+    <div class="modal-form-row">
+      <div class="modal-group">
+        <label>Semester *</label>
+        <select id="ex-sem">
+          <option value="">Sem...</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option>
+          <option>5</option><option>6</option><option>7</option><option>8</option>
+        </select>
+      </div>
+      <div class="modal-group">
+        <label>Section *</label>
+        <select id="ex-sec">
+          <option value="">Sec...</option>
+          <option>A</option><option>B</option><option>C</option>
+          <option>D</option><option>E</option><option>F</option>
+        </select>
+      </div>
     </div>
     <div class="modal-group">
       <label>Room (optional)</label>

@@ -320,49 +320,39 @@
     showToast('Password reset email sent!', 'success');
   }
 
-  // If already logged in, redirect based on role
+  // ── Safe auto-redirect for already-authenticated users ─────────────────────
+  // Fires when the login page loads and a Firebase session already exists
+  // (e.g. user navigates back to /login.html mid-session or after a page refresh).
+  //
+  // CRITICAL — what this listener must NOT do:
+  //   createUserWithEmailAndPassword() also triggers onAuthStateChanged, meaning
+  //   this fires mid-doSignup() BEFORE doSignup() has written the Firestore users doc.
+  //   Any Firestore write here (especially role:'student') would race with doSignup()'s
+  //   own write and non-deterministically overwrite the teacher role.
+  //
+  // Rule: this listener is READ-ONLY. It never creates or modifies Firestore documents.
+  //   • Profile creation → doSignup() exclusively (Line 268–310).
+  //   • Missing-doc fallback on sign-in → doLogin() explicitly (Line 207–220).
   auth.onAuthStateChanged(async user => {
-    if (user) {
-      try {
-        let snap = await db.collection('users').doc(user.uid).get();
-        if (!snap.exists) {
-          // No Firestore profile. Safe default: create as 'student'.
-          // If this user should be a Teacher/Admin, update their role in Firestore.
-          console.warn('[Auth] No users doc on onAuthStateChanged for', user.uid, '— creating default student profile.');
-          await db.collection('users').doc(user.uid).set({
-            email: user.email,
-            name: user.displayName || '',
-            role: 'student',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            _autoCreated: true
-          });
-          snap = await db.collection('users').doc(user.uid).get();
-        }
-        const data = snap.data();
-        // Normalise role: accept 'admin', 'teacher', 'student' explicitly.
-        const rawRole = data.role || 'student';
-        const role = ['admin', 'teacher', 'student'].includes(rawRole) ? rawRole : 'student';
-
-        // If student has mustChangePassword flag, clear it — they've already set
-        // their own password via the Firebase reset email link before logging in.
-        if (role === 'student' && data.mustChangePassword === true) {
-          await db.collection('users').doc(user.uid).update({
-            mustChangePassword: false,
-            passwordLastChangedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          // Try to update students collection accountStatus (may fail if rules restrict student writes)
-          try {
-            const studentSnap = await db.collection('students').where('uid', '==', user.uid).limit(1).get();
-            if (!studentSnap.empty) {
-              await studentSnap.docs[0].ref.update({ accountStatus: 'Active' });
-            }
-          } catch(_) { /* students collection write restricted to teachers — silently skip */ }
-        }
-
-        redirectByRole(role);
-      } catch(e) {
-        console.error('[Auth] onAuthStateChanged redirect error:', e);
+    if (!user) return;
+    try {
+      const snap = await db.collection('users').doc(user.uid).get();
+      if (!snap.exists) {
+        // No Firestore profile yet. Two valid cases:
+        //   A) doSignup() is mid-flight — it will write the profile and redirect itself.
+        //   B) Console-created account — user needs to sign in via doLogin() which
+        //      handles the missing-doc case and creates a minimal profile there.
+        // Either way: do NOT write anything here. Return and let the active flow complete.
+        console.warn('[Auth] onAuthStateChanged: no users doc for', user.uid,
+          '— skipping (doSignup in progress or Console account). No Firestore write performed.');
+        return;
       }
+      const data = snap.data();
+      const rawRole = data.role || 'student';
+      const role = ['admin', 'teacher', 'student'].includes(rawRole) ? rawRole : 'student';
+      redirectByRole(role);
+    } catch(e) {
+      console.error('[Auth] onAuthStateChanged redirect error:', e);
     }
   });
 

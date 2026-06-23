@@ -29,7 +29,7 @@ class FaceEngine {
    */
   async loadModels(onProgress, lightweight = false) {
     if (this.modelsLoaded) return;
-    onProgress && onProgress('Loading AI models...');
+    onProgress && onProgress('Loading verification models...');
 
     const loads = [
       faceapi.nets.faceLandmark68Net.loadFromUri(FACEAPI_MODEL_URL),

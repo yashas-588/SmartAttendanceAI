@@ -237,7 +237,7 @@ class LivenessEngine {
     await window.faceMesh.send({ image: dummyCanvas });
     
     window.faceMeshLoaded = true;
-    console.log('✅ MediaPipe FaceMesh loaded and warmed up');
+    console.log('MediaPipe FaceMesh loaded and warmed up');
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -250,17 +250,71 @@ class LivenessEngine {
     await this._sleep(300);
     const q = this.assessQuality(videoEl);
     
-    onStatus('Analyzing surface texture & motion...', 'scanning');
+    // Initialize MediaPipe FaceMesh immediately to get face bounds
+    try {
+      onStatus('Initializing challenge engines...', 'scanning');
+      await this.initFaceMesh();
+    } catch (err) {
+      return { passed: false, details: { reason: 'Failed to load liveness challenge engine.' }, completed_challenges: [] };
+    }
+
     const canvas = document.createElement('canvas');
-    canvas.width = videoEl.videoWidth || 640;
-    canvas.height = videoEl.videoHeight || 480;
+    const w = videoEl.videoWidth || 640;
+    const h = videoEl.videoHeight || 480;
+    canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
+
+    // Run dynamic face detection to find landmark bounds
+    let landmarks = null;
+    onStatus('Position your face in center...', 'scanning');
     
+    const maxDetectAttempts = 30;
+    for (let attempt = 0; attempt < maxDetectAttempts; attempt++) {
+      ctx.drawImage(videoEl, 0, 0, w, h);
+      await window.faceMesh.send({ image: videoEl });
+      const res = window.lastFaceMeshResults;
+      if (res && res.multiFaceLandmarks && res.multiFaceLandmarks.length > 0) {
+        landmarks = res.multiFaceLandmarks[0];
+        break;
+      }
+      await this._sleep(150);
+    }
+
+    if (!landmarks) {
+      return { passed: false, details: { reason: 'No face detected.' }, completed_challenges: [] };
+    }
+
+    onStatus('Analyzing face texture & surface...', 'scanning');
+
+    // Crop face bounding box based on coordinates
+    const xs = landmarks.map(p => p.x * w);
+    const ys = landmarks.map(p => p.y * h);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    
+    const padX = (maxX - minX) * 0.1;
+    const padY = (maxY - minY) * 0.1;
+    
+    const faceBox = {
+      x: Math.max(0, Math.floor(minX - padX)),
+      y: Math.max(0, Math.floor(minY - padY)),
+      w: Math.min(w - Math.floor(minX - padX), Math.ceil(maxX - minX + 2*padX)),
+      h: Math.min(h - Math.floor(minY - padY), Math.ceil(maxY - minY + 2*padY))
+    };
+
+    // Grab face image data specifically
+    ctx.drawImage(videoEl, 0, 0, w, h);
+    const faceImgData = ctx.getImageData(faceBox.x, faceBox.y, faceBox.w, faceBox.h);
+
     const scores = { quality: q.score, texture: 0, biometric: 0, head: 0, blink: 0 };
     const details = {
-      face_detected: false,
+      face_detected: true,
       lbp_score: 0, lbp_pass: false,
       moire_score: 0, moire_pass: false,
+      glare_detected: false, glare_ratio: 0,
+      depth_pass: false, depth_score: 0,
+      flicker_detected: false, flicker_val: 0,
+      replay_suspicion_score: 0,
       rppg_score: 0, rppg_pass: false,
       motion_score: 0, motion_pass: false,
       blink_pass: false,
@@ -270,55 +324,94 @@ class LivenessEngine {
       quality_hint: q.hint,
       guidance: ''
     };
-    
-    // Quick passive check (10 frames, ~800ms) to run the existing anti-spoofing pipeline
-    let motionScores = [];
-    for (let i = 0; i < 10; i++) {
-      await this._sleep(80);
-      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      const fd = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      motionScores.push(this.computeMotion(fd, canvas.width, canvas.height));
-      const fb = { x: canvas.width*0.2, y: 0, width: canvas.width*0.6, height: canvas.height*0.5 };
-      this.updateRPPG(fd, fb, canvas.width);
-    }
-    
-    // Compute texture features (LBP & Moire)
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    details.lbp_score = this.computeLBP(imgData, canvas.width, canvas.height);
-    details.lbp_pass  = details.lbp_score >= this.LBP_THRESH;
-    details.moire_score = this.detectMoire(imgData, canvas.width, canvas.height);
-    details.moire_pass  = details.moire_score > this.MOIRE_LOW && details.moire_score < this.MOIRE_HIGH;
+
+    // 1. Texture checks on Face Box
+    details.lbp_score = this.computeLBP(faceImgData, faceBox.w, faceBox.h);
+    details.lbp_pass = details.lbp_score >= this.LBP_THRESH;
+
+    details.moire_score = this.detectMoire(faceImgData, faceBox.w, faceBox.h);
+    details.moire_pass = details.moire_score > this.MOIRE_LOW && details.moire_score < this.MOIRE_HIGH;
+
     scores.texture = details.lbp_pass && details.moire_pass ? 1.0 :
                      details.lbp_pass || details.moire_pass ? 0.6 : 0.15;
-                     
+
+    // 2. Glare check on Face Box
+    const numPixels = faceBox.w * faceBox.h;
+    let whitePixels = 0;
+    const fd = faceImgData.data;
+    for (let i = 0; i < fd.length; i += 4) {
+      const lum = 0.299*fd[i] + 0.587*fd[i+1] + 0.114*fd[i+2];
+      if (lum > 248) whitePixels++;
+    }
+    details.glare_ratio = whitePixels / Math.max(numPixels, 1);
+    details.glare_detected = details.glare_ratio > 0.015; // >1.5% glare hotspots
+
+    // 3. 3D Depth-Consistency Check
+    const nose = landmarks[1];
+    const cheekL = landmarks[454];
+    const cheekR = landmarks[234];
+    details.depth_score = Math.abs(nose.z - (cheekL.z + cheekR.z) / 2);
+    details.depth_pass = details.depth_score > 0.035; // Flat screen has depth score close to 0
+
+    // 4. Temporal checks (motion, rPPG, flickering) over 10 quick frames (~800ms)
+    let motionScores = [];
+    let lums = [];
+    for (let i = 0; i < 10; i++) {
+      await this._sleep(80);
+      ctx.drawImage(videoEl, 0, 0, w, h);
+      const frameData = ctx.getImageData(0, 0, w, h);
+      
+      // Calculate face-cropped motion
+      const faceCrop = ctx.getImageData(faceBox.x, faceBox.y, faceBox.w, faceBox.h);
+      motionScores.push(this.computeMotion(faceCrop, faceBox.w, faceBox.h));
+      
+      // Update rPPG
+      this.updateRPPG(frameData, faceBox, w);
+      
+      // Gather average luminance of face box for flickering detection
+      let lumSum = 0, lumCnt = 0;
+      const cd = faceCrop.data;
+      for (let k = 0; k < cd.length; k += 16) {
+        lumSum += 0.299*cd[k] + 0.587*cd[k+1] + 0.114*cd[k+2];
+        lumCnt++;
+      }
+      lums.push(lumCnt ? lumSum / lumCnt : 0);
+    }
+
     details.motion_score = motionScores.reduce((a,b)=>a+b,0)/motionScores.length;
-    details.motion_pass  = details.motion_score >= this.MOTION_THRESH;
-    details.rppg_score   = this.getRPPGVariance();
-    details.rppg_pass    = details.rppg_score >= this.RPPG_MIN_VAR;
+    details.motion_pass = details.motion_score >= this.MOTION_THRESH;
+    details.rppg_score = this.getRPPGVariance();
+    details.rppg_pass = details.rppg_score >= this.RPPG_MIN_VAR;
+    
     scores.biometric = details.motion_pass && details.rppg_pass ? 1.0 :
                        details.motion_pass || details.rppg_pass ? 0.65 : 0.1;
 
-    // 2. Load and initialize MediaPipe FaceMesh if needed
-    try {
-      await this.initFaceMesh();
-    } catch (err) {
-      details.reason = 'Failed to load liveness challenge engine.';
-      return { passed: false, details, completed_challenges: [] };
-    }
+    // Calculate flickering value (luminance standard deviation across frames)
+    const lumMean = lums.reduce((a,b)=>a+b,0)/lums.length;
+    details.flicker_val = Math.sqrt(lums.reduce((s,v)=>s+(v-lumMean)**2, 0)/lums.length);
+    details.flicker_detected = details.flicker_val > 3.0; // Significant flickering
 
-    // 3. Loop through active challenges
+    // 5. Calculate Replay Suspicion Score (consolidated)
+    let replayScore = 0;
+    if (!details.lbp_pass) replayScore += 25;
+    if (!details.moire_pass) replayScore += 20;
+    if (details.glare_detected) replayScore += 25;
+    if (details.flicker_detected) replayScore += 20;
+    if (!details.depth_pass) replayScore += 30;
+    details.replay_suspicion_score = Math.min(100, replayScore);
+
+    // 6. Active Challenges Loop
     const completedList = [];
     let challengeFailed = false;
     let challengeFailReason = '';
     
     const chalIcons = {
-      'blink twice': '👁️',
-      'turn head left': '⬅️',
-      'turn head right': '➡️',
-      'smile': '😊',
-      'move closer': '👤',
-      'raise eyebrows': '🤨'
+      'blink twice': '•',
+      'turn head left': '←',
+      'turn head right': '→',
+      'smile': '•',
+      'move closer': '•',
+      'raise eyebrows': '•'
     };
     
     const chalInstructions = {
@@ -329,10 +422,10 @@ class LivenessEngine {
       'move closer': 'Move closer to the camera',
       'raise eyebrows': 'Raise your eyebrows'
     };
-    
+
     for (let index = 0; index < challengeSeq.length; index++) {
       const chal = challengeSeq[index];
-      const icon = chalIcons[chal] || '👁️';
+      const icon = chalIcons[chal] || '•';
       const instruction = chalInstructions[chal] || chal;
       
       onStatus(instruction, 'challenge');
@@ -340,10 +433,10 @@ class LivenessEngine {
         showChallenge(icon, instruction, `Challenge ${index + 1} of ${challengeSeq.length}`);
       }
       if (typeof startChallengeTimer === 'function') {
-        startChallengeTimer(20); // 20s per challenge
+        startChallengeTimer(15); // 15 seconds per challenge - faster pace!
       }
       
-      const chalRes = await this._detectChallenge(videoEl, chal, 20000, (guidance) => {
+      const chalRes = await this._detectChallenge(videoEl, chal, 15000, (guidance) => {
         if (typeof showChallenge === 'function') {
           showChallenge(icon, guidance, `Challenge ${index + 1} of ${challengeSeq.length}`);
         }
@@ -368,19 +461,18 @@ class LivenessEngine {
         break;
       }
     }
-    
-    // Complete remaining score filling for the final calculation
-    if (!details.blink_pass) scores.blink = 1.0; // Pass since not requested or completed
-    if (!details.head_pose_pass) scores.head = 1.0; // Pass since not requested or completed
-    
-    // Calculate final weighted score
+
+    if (!details.blink_pass) scores.blink = 1.0;
+    if (!details.head_pose_pass) scores.head = 1.0;
+
     let total = 0;
     for (const [k,w] of Object.entries(this.WEIGHTS)) total += (scores[k]||0) * w;
     details.weighted_score = Math.round(total * 100);
     details.scores = scores;
-    
+
+    // Do NOT yet enforce hard rejection for texture/glare/moire/depth in the client passed condition!
+    // The attendance marked passed ONLY depends on active challenges completion + biometric threshold
     const passed = !challengeFailed && (total >= this.PASS_THRESHOLD);
-    details.face_detected = passed;
     
     if (passed) {
       details.reason = `Liveness verified (${details.weighted_score}% confidence)`;
@@ -388,7 +480,7 @@ class LivenessEngine {
       details.reason = challengeFailed ? `Challenge failed: ${challengeFailReason}` : `Anti-spoofing score: ${details.weighted_score}% too low`;
       details.guidance = challengeFailed ? 'Follow instructions closely and try again.' : 'Hold camera steady and check lighting.';
     }
-    
+
     return { passed, details, completed_challenges: completedList };
   }
 

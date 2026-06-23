@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard — Smart AI Attendance</title>
+  <title>Teacher Dashboard — Attendance Management System</title>
   <link rel="stylesheet" href="../style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { display:flex; min-height:100vh; }
     .sidebar { width:var(--sidebar-width); background:rgba(2,8,23,0.97); border-right:1px solid var(--border-glass); display:flex; flex-direction:column; padding:24px 0; position:fixed; top:0; bottom:0; left:0; z-index:100; overflow-y:auto; }
@@ -24,7 +24,7 @@
     .stat-card { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; padding:20px; display:flex; align-items:center; gap:16px; transition:var(--transition); }
     .stat-card:hover { border-color:var(--border-neon); box-shadow:var(--shadow-neon); }
     .stat-icon-wrap { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-    .stat-num { font-family:'Orbitron',sans-serif; font-size:28px; font-weight:700; }
+    .stat-num { font-family:'Inter',sans-serif; font-size:28px; font-weight:700; }
     .stat-lbl { font-size:12px; color:var(--text-muted); margin-top:2px; }
     .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
     .panel { background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:16px; padding:20px; }
@@ -50,7 +50,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="../firebase-config.js"></script>
-  <script src="../js/auth-guard.js"></script>
+  <script src="../js/auth-guard.js?v=2.4"></script>
 </head>
 <body>
 <div id="toast-container"></div>
@@ -61,12 +61,11 @@
 <div class="main-content">
   <header class="topbar">
     <div style="display:flex;align-items:center;gap:12px;">
-      <button id="mob-menu" style="display:none;background:none;border:none;cursor:pointer;color:var(--text-primary);" onclick="document.querySelector('.sidebar').classList.toggle('open')"><i data-lucide="menu"></i></button>
       <h1 style="font-size:18px;font-weight:700;">Dashboard</h1>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
-      <span id="clock" style="font-family:'Orbitron',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
-      <a href="live.html" class="btn-primary" style="padding:8px 18px;font-size:13px;"><i data-lucide="video"></i> Live Scan</a>
+      <span id="clock" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--neon-blue);"></span>
+      <a href="live.html" class="btn-primary" style="padding:8px 18px;font-size:13px;"><i data-lucide="video"></i> Attendance Monitor</a>
     </div>
   </header>
 
@@ -151,7 +150,7 @@
       feedEl.innerHTML = feedRecs.slice(0,10).map(r => `
         <div class="feed-item">
           <div class="feed-avatar">${(r.name||'?')[0].toUpperCase()}</div>
-          <div><div class="feed-name">${r.name}</div><div class="feed-meta">${r.method||'AI Face'} · ${r.confidence?Math.round(r.confidence*100)+'%':''}</div></div>
+          <div><div class="feed-name">${r.name}</div><div class="feed-meta">${r.method||'Face Recognition'} · ${r.confidence?Math.round(r.confidence*100)+'%':''}</div></div>
           <div class="feed-time">${r.time||''}<br>
             <span class="badge ${r.status === 'Present' ? 'badge-green' : 'badge-red'}" style="font-size:10px;">${r.status}</span>
           </div>
@@ -173,7 +172,13 @@
     // Add Suspicious logs
     logsSnap.forEach(d => {
       const r = d.data();
-      alerts.push({ name: r.name, reason: r.reason, time: r.time, type: 'Suspicious' });
+      alerts.push({
+        name: r.name,
+        reason: r.reason,
+        time: r.time,
+        type: r.status === 'Success' ? 'Success' : 'Suspicious',
+        replay_suspicion_score: r.replay_suspicion_score || 0
+      });
     });
     
     alerts.sort((a,b) => (b.time||'').localeCompare(a.time||''));
@@ -181,24 +186,50 @@
     if (alerts.length === 0) {
       alertsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--neon-green);">No security alerts today</div>';
     } else {
-      alertsEl.innerHTML = alerts.slice(0,10).map(a => `
-        <div class="feed-item" style="background:rgba(239,68,68,0.05);border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid rgba(239,68,68,0.2);">
-          <div class="feed-avatar" style="background:rgba(239,68,68,0.15);color:#f87171;">!</div>
-          <div><div class="feed-name" style="color:#f87171;">${a.name}</div><div class="feed-meta">${a.reason}</div></div>
+      alertsEl.innerHTML = alerts.slice(0,10).map(a => {
+        const susp = a.replay_suspicion_score ? `<span class="badge ${a.replay_suspicion_score > 50 ? 'badge-red' : 'badge-orange'}" style="font-size:10px;margin-top:4px;display:inline-block;">Replay Suspicion: ${a.replay_suspicion_score}%</span>` : '';
+        return `
+        <div class="feed-item" style="background:${a.type==='Success'?'rgba(74,222,128,0.03)':'rgba(239,68,68,0.05)'};border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid ${a.type==='Success'?'rgba(74,222,128,0.15)':'rgba(239,68,68,0.2)'};">
+          <div class="feed-avatar" style="background:${a.type==='Success'?'rgba(74,222,128,0.15)':'rgba(239,68,68,0.15)'};color:${a.type==='Success'?'var(--neon-green)':'#f87171'};">${a.type==='Success'?'✓':'!'}</div>
+          <div>
+            <div class="feed-name" style="color:${a.type==='Success'?'var(--neon-green)':'#f87171'};">${a.name}</div>
+            <div class="feed-meta">${a.reason}</div>
+            ${susp}
+          </div>
           <div class="feed-time">${a.time}</div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
-    // Defaulters calc
+    // Defaulters calc (High-Performance O(1) Index Hashing)
     let defCount = 0;
-    for (const doc of studSnap.docs) {
-      const s = doc.data();
-      // Use uid (auth-linked) or doc.id (admin-only) as the studentId
-      const sid = s.uid || doc.id;
-      const pSnap = await db.collection('attendance').where('studentId','==',sid).where('status','==','Present').get();
-      const tSnap = await db.collection('attendance').where('studentId','==',sid).get();
-      const pct = tSnap.size ? Math.round((pSnap.size/tSnap.size)*100) : 0;
-      if (pct < 75) defCount++;
+    try {
+      const attSnap = await db.collection('attendance').get();
+      const studentStats = {}; // { studentId: { present: 0, total: 0 } }
+      
+      attSnap.forEach(d => {
+        const r = d.data();
+        const sid = r.studentId;
+        if (sid) {
+          if (!studentStats[sid]) {
+            studentStats[sid] = { present: 0, total: 0 };
+          }
+          studentStats[sid].total++;
+          if (r.status === 'Present') {
+            studentStats[sid].present++;
+          }
+        }
+      });
+
+      studSnap.forEach(doc => {
+        const s = doc.data();
+        const sid = s.uid || doc.id;
+        const stats = studentStats[sid] || { present: 0, total: 0 };
+        const pct = stats.total ? Math.round((stats.present / stats.total) * 100) : 0;
+        if (pct < 75) defCount++;
+      });
+    } catch(err) {
+      console.warn('In-memory defaulters calculation error:', err);
     }
     document.getElementById('defaulters').textContent = defCount;
 
