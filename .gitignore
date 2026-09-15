@@ -72,3 +72,9 @@ __pycache__/
 *.pyc
 firebase_key.json
 .DS_Store
+
+# Local Firebase web configuration containing real project credentials
+web/firebase-config.js
+
+# Scratch & diagnostic scripts
+scratch/
